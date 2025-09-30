@@ -1,6 +1,9 @@
 package candle
 
 import (
+	"math"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/common/models"
@@ -46,10 +49,163 @@ func (o *ScanOptions) withDefaults() ScanOptions {
 // tailLen — длина начального хвоста в свечах, tolerance — допуск по проценто-изменению для основной части,
 // searchFrom/searchTo — период, в котором искать по каждому тикеру.
 func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
-	return nil, nil
+	if s == nil || s.fetcher == nil {
+		return nil, nil
+	}
+
+	if len(segment.Candles) == 0 || len(tickers) == 0 {
+		return nil, nil
+	}
+
+	opts := options.withDefaults()
+	L := len(segment.Candles)
+	if opts.TailLen < 0 {
+		opts.TailLen = 0
+	}
+	if opts.TailLen > L {
+		opts.TailLen = L
+	}
+
+	normSegment := models.NormalizeCandles(segment.Candles)
+
+	targetTailSign := tailSign(normSegment[:opts.TailLen])
+
+	// Параллельная обработка тикеров
+	workerCount := runtime.NumCPU()
+	if workerCount < 2 {
+		workerCount = 2
+	}
+
+	tickerCh := make(chan string)
+	matchCh := make(chan models.ChartSegment, 1024)
+	errCh := make(chan error, workerCount)
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for ticker := range tickerCh {
+			candles, err := s.fetcher.Fetch(ticker, searchFrom, searchTo)
+			if err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				continue
+			}
+			for i := 0; i+L <= len(candles); i++ {
+				window := candles[i : i+L]
+				normWindow := models.NormalizeCandles(window)
+				if opts.TailLen > 0 {
+					if tailSign(normWindow[:opts.TailLen]) != targetTailSign {
+						continue
+					}
+				}
+				if similarCoreWithShadows(
+					normWindow[opts.TailLen:],
+					normSegment[opts.TailLen:],
+					opts.BodyTolerance,
+					opts.ShadowTolerance,
+				) {
+					matchCh <- models.ChartSegment{
+						Ticker:  ticker,
+						From:    window[0].Date,
+						To:      window[len(window)-1].Date,
+						Candles: append([]models.Candle(nil), window...),
+					}
+				}
+			}
+		}
+	}
+
+	wg.Add(workerCount)
+	for i := 0; i < workerCount; i++ {
+		go worker()
+	}
+
+	go func() {
+		for _, t := range tickers {
+			tickerCh <- t
+		}
+		close(tickerCh)
+	}()
+
+	var matches []models.ChartSegment
+	done := make(chan struct{})
+	go func() {
+		for m := range matchCh {
+			matches = append(matches, m)
+		}
+		close(done)
+	}()
+
+	wg.Wait()
+	close(matchCh)
+	<-done
+
+	select {
+	case e := <-errCh:
+		return matches, e
+	default:
+	}
+
+	return matches, nil
 }
 
 // ComputeStats считает статистику по совпадениям для заданного сегмента.
 func (s *Scanner) ComputeStats(matches []models.ChartSegment, horizonDays int) (*models.ScanStats, error) {
 	return nil, nil
+}
+
+// tailSign возвращает знак суммарного движения свечей (по цене Close-Open)
+func tailSign(candles []models.Candle) bool {
+	if len(candles) == 0 {
+		return true
+	}
+	return math.Signbit(candles[0].Open - candles[len(candles)-1].Close)
+}
+
+// similarCoreWithShadows сравнивает основную часть сегмента по телу и теням с допусками
+func similarCoreWithShadows(window []models.Candle, targetCandles []models.Candle, bodyTolerance, shadowTolerance float64) bool {
+	if len(window) == 0 || len(targetCandles) == 0 {
+		return false
+	}
+
+	for i := 0; i < len(window); i++ { // обработка свечей в паттерне
+		winSign := math.Signbit(window[i].Open - window[i].Close)
+		targetSign := math.Signbit(targetCandles[i].Open - targetCandles[i].Close)
+
+		if winSign != targetSign {
+			return false // если свечи в разных направлениях, паттерн не совпадает
+		}
+
+		// Верх свечи open
+		if math.Abs(window[i].Open-targetCandles[i].Open) > bodyTolerance {
+			return false
+		}
+
+		// Низ свечи close
+		if math.Abs(window[i].Close-targetCandles[i].Close) > bodyTolerance {
+			return false
+		}
+
+		// Верхняя тень (high - max(open,close))
+		candleUpper := window[i].High - math.Max(window[i].Open, window[i].Close)
+		patternUpper := targetCandles[i].High - math.Max(
+			targetCandles[i].Open,
+			targetCandles[i].Close)
+		if math.Abs(candleUpper-patternUpper) > shadowTolerance {
+			return false
+		}
+
+		// Нижняя тень (min(open,close) - low)
+		candleLower := math.Min(window[i].Open, window[i].Close) - window[i].Low
+		patternLower := math.Min(
+			targetCandles[i].Open,
+			targetCandles[i].Close) - targetCandles[i].Low
+		if math.Abs(candleLower-patternLower) > shadowTolerance {
+			return false
+		}
+	}
+
+	return true
 }
