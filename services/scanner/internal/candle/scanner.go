@@ -142,13 +142,14 @@ func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, sea
 	close(matchCh)
 	<-done
 
-	select {
-	case e := <-errCh:
-		return matches, e
-	default:
+	for {
+		select {
+		case e := <-errCh:
+			log.Printf("error in worker: %v", e)
+		default:
+			return matches, nil
+		}
 	}
-
-	return matches, nil
 }
 
 // ComputeStats считает статистику по совпадениям для заданного сегмента.
