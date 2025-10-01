@@ -1,6 +1,7 @@
 package candle
 
 import (
+	"log"
 	"math"
 	"runtime"
 	"sync"
@@ -46,7 +47,7 @@ func (o *ScanOptions) withDefaults() ScanOptions {
 }
 
 // FindMatches ищет совпадения для заданного сегмента на указанных тикерах по всему периоду поиска.
-// tailLen — длина начального хвоста в свечах, tolerance — допуск по проценто-изменению для основной части,
+// tailLen — длина начального хвоста в свечах, tolerance — допуск по процентно-изменению для основной части,
 // searchFrom/searchTo — период, в котором искать по каждому тикеру.
 func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
@@ -106,11 +107,14 @@ func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, sea
 					opts.BodyTolerance,
 					opts.ShadowTolerance,
 				) {
-					matchCh <- models.ChartSegment{
+					match := models.ChartSegment{
 						Ticker:  ticker,
 						From:    window[0].Date,
 						To:      window[len(window)-1].Date,
 						Candles: append([]models.Candle(nil), window...),
+					}
+					if !IsOverlap(segment, match) {
+						matchCh <- match
 					}
 				}
 			}
@@ -150,11 +154,6 @@ func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, sea
 			return matches, nil
 		}
 	}
-}
-
-// ComputeStats считает статистику по совпадениям для заданного сегмента.
-func (s *Scanner) ComputeStats(matches []models.ChartSegment, horizonDays int) (*models.ScanStats, error) {
-	return nil, nil
 }
 
 // tailSign возвращает знак суммарного движения свечей (по цене Close-Open)
@@ -209,4 +208,16 @@ func similarCoreWithShadows(window []models.Candle, targetCandles []models.Candl
 	}
 
 	return true
+}
+
+// IsOverlap проверяет, накладываются ли два сегмента друг на друга.
+// Сегменты считаются наложенными, если они относятся к одному тикеру
+// и их временные интервалы пересекаются.
+func IsOverlap(seg1 models.ChartSegment, seg2 models.ChartSegment) bool {
+	if seg1.Ticker != seg2.Ticker {
+		return false
+	}
+
+	return !(seg1.To.Before(seg2.From) || seg1.To.Equal(seg2.From) ||
+		seg2.To.Before(seg1.From) || seg2.To.Equal(seg1.From))
 }
