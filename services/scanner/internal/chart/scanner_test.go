@@ -1,9 +1,10 @@
 package chart
 
 import (
-	"github.com/m1keee3/FinanceAnalyst/common/models"
 	"testing"
 	"time"
+
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
 )
 
 // MockFetcher для тестирования

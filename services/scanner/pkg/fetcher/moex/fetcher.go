@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/m1keee3/FinanceAnalyst/common/models"
-	"github.com/m1keee3/FinanceAnalyst/services/scanner/pkg/utils"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/pkg/utils"
 )
 
 const year = 365 * 24 * time.Hour

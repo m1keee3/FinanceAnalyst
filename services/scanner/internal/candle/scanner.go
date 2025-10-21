@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m1keee3/FinanceAnalyst/common/models"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
 )
 
 type Fetcher interface {
