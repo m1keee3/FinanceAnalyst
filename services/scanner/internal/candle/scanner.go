@@ -46,10 +46,23 @@ func (o *ScanOptions) withDefaults() ScanOptions {
 	return out
 }
 
+// Scan выполняет поиск совпадений с использованием переданного запроса
+func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
+	if s == nil || s.fetcher == nil {
+		return nil, nil
+	}
+
+	if query == nil {
+		return nil, nil
+	}
+
+	return s.findMatches(query.Segment, query.Tickers, query.SearchFrom, query.SearchTo, &query.Options)
+}
+
 // FindMatches ищет совпадения для заданного сегмента на указанных тикерах по всему периоду поиска.
 // tailLen — длина начального хвоста в свечах, tolerance — допуск по процентно-изменению для основной части,
 // searchFrom/searchTo — период, в котором искать по каждому тикеру.
-func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
+func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
 		return nil, nil
 	}

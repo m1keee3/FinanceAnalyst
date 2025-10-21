@@ -18,6 +18,20 @@ type Scanner struct {
 	fetcher Fetcher
 }
 
+// Scan выполняет поиск совпадений с использованием переданного запроса
+func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
+	if s == nil || s.fetcher == nil {
+		return nil, nil
+	}
+
+	// Если запрос не передан, возвращаем пустой результат
+	if query == nil {
+		return nil, nil
+	}
+
+	return s.findMatches(query.Segment, query.Tickers, query.SearchFrom, query.SearchTo, &query.Options)
+}
+
 func NewScanner(fetcher Fetcher) *Scanner {
 	return &Scanner{
 		fetcher: fetcher,
@@ -62,7 +76,7 @@ type match struct {
 }
 
 // FindMatches ищет похожие паттерны в данных тикеров используя DTW алгоритм
-func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
+func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
 		return nil, nil
 	}
@@ -103,7 +117,7 @@ func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, sea
 				continue
 			}
 
-			matches := s.findMatches(seedVec, ticker, candles, minLen, maxLen, opts.Tolerance, resampledLength)
+			matches := s.findMatchesForSeed(seedVec, ticker, candles, minLen, maxLen, opts.Tolerance, resampledLength)
 
 			mu.Lock()
 			allMatches = append(allMatches, matches...)
@@ -140,7 +154,7 @@ func (s *Scanner) FindMatches(segment models.ChartSegment, tickers []string, sea
 
 // findMatches ищет совпадения для заданного seed вектора в массиве свечей
 // с учетом диапазона длин от minLen до maxLen
-func (s *Scanner) findMatches(seedVec []float64, ticker string, candles []models.Candle, minLen, maxLen int, tolerance float64, resampledLength int) []match {
+func (s *Scanner) findMatchesForSeed(seedVec []float64, ticker string, candles []models.Candle, minLen, maxLen int, tolerance float64, resampledLength int) []match {
 	n := len(candles)
 	if n < minLen {
 		return nil
