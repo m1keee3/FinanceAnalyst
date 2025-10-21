@@ -33,3 +33,11 @@ go.work.sum
 
 # Gen files
 **/proto-gen/
+
+# Python virtual environment
+venv/
+.env/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.conda/
