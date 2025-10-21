@@ -18,6 +18,7 @@ type Scanner struct {
 	fetcher Fetcher
 }
 
+// TODO убрать самого себя
 // Scan выполняет поиск совпадений с использованием переданного запроса
 func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
