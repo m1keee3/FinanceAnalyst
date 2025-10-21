@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package scanner.v1;
+
+option go_package = "github.com/m1keee3/FinanceAnalyst/services/scanner/proto-gen/v1;scannerv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Candle представляет одну свечу на графике
+message Candle {
+  google.protobuf.Timestamp date = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+}
+
+// ChartSegment представляет сегмент графика с набором свечей
+message ChartSegment {
+  string ticker = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+  repeated Candle candles = 4;
+}
+
+// ScanStats содержит статистику по результатам сканирования
+message ScanStats {
+  int32 total_matches = 1;
+  double price_change = 2;
+  double probability = 3;
+}
+
+// Опции для сканирования свечных паттернов
+message CandleScanOptions {
+  int32 tail_len = 1;
+  double body_tolerance = 2;
+  double shadow_tolerance = 3;
+}
+
+// Опции для сканирования графических паттернов
+message ChartScanOptions {
+  double min_scale = 1;
+  double max_scale = 2;
+  double tolerance = 3;
+}
+
+// Запрос на поиск свечных паттернов
+message CandleScanRequest {
+  ChartSegment segment = 1;
+  CandleScanOptions options = 2;
+  google.protobuf.Timestamp search_from = 3;
+  google.protobuf.Timestamp search_to = 4;
+  repeated string tickers = 5;
+}
+
+// Запрос на поиск графических паттернов
+message ChartScanRequest {
+  ChartSegment segment = 1;
+  ChartScanOptions options = 2;
+  google.protobuf.Timestamp search_from = 3;
+  google.protobuf.Timestamp search_to = 4;
+  repeated string tickers = 5;
+}
+
+// Ответ на запрос сканирования
+message ScanResponse {
+  repeated ChartSegment matches = 1;
+}
+
+// Запрос на вычисление статистики для свечных паттернов
+message ComputeStatsCandleRequest {
+  CandleScanRequest scan = 1;
+  int32 days_to_watch = 2;
+}
+
+// Запрос на вычисление статистики для графических паттернов
+message ComputeStatsChartRequest {
+  ChartScanRequest scan = 1;
+  int32 days_to_watch = 2;
+}
+
+// Ответ с вычисленной статистикой
+message ComputeStatsResponse {
+  ScanStats stats = 1;
+}
+
+// Сервис для сканирования финансовых паттернов
+service ScannerService {
+  // Поиск свечных паттернов
+  rpc FindCandleMatches(CandleScanRequest) returns (ScanResponse);
+
+  // Поиск графических паттернов
+  rpc FindChartMatches(ChartScanRequest) returns (ScanResponse);
+
+  // Вычисление статистики для свечных паттернов
+  rpc ComputeCandleStats(ComputeStatsCandleRequest) returns (ComputeStatsResponse);
+
+  // Вычисление статистики для графических паттернов
+  rpc ComputeChartStats(ComputeStatsChartRequest) returns (ComputeStatsResponse);
+}
