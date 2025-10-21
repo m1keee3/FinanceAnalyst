@@ -20,21 +20,21 @@ func (m *MockFetcher) Fetch(ticker string, from, to time.Time) ([]models.Candle,
 	return nil, nil
 }
 
-// FindMatches tests
+// Scan tests
 // Граничные случаи
 
-func TestFindMatches_NilScanner(t *testing.T) {
+func TestScan_NilScanner(t *testing.T) {
 	var s *Scanner
-	segment := models.ChartSegment{
-		Candles: []models.Candle{
-			{Open: 100, Close: 110, High: 115, Low: 95},
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: []models.Candle{
+				{Open: 100, Close: 110, High: 115, Low: 95},
+			},
 		},
+		Tickers: []string{"AAPL"},
 	}
-	tickers := []string{"AAPL"}
-	from := time.Now()
-	to := time.Now().Add(24 * time.Hour)
 
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -44,18 +44,18 @@ func TestFindMatches_NilScanner(t *testing.T) {
 	}
 }
 
-func TestFindMatches_NilFetcher(t *testing.T) {
+func TestScan_NilFetcher(t *testing.T) {
 	s := &Scanner{fetcher: nil}
-	segment := models.ChartSegment{
-		Candles: []models.Candle{
-			{Open: 100, Close: 110, High: 115, Low: 95},
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: []models.Candle{
+				{Open: 100, Close: 110, High: 115, Low: 95},
+			},
 		},
+		Tickers: []string{"AAPL"},
 	}
-	tickers := []string{"AAPL"}
-	from := time.Now()
-	to := time.Now().Add(24 * time.Hour)
 
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -65,17 +65,17 @@ func TestFindMatches_NilFetcher(t *testing.T) {
 	}
 }
 
-func TestFindMatches_EmptySegment(t *testing.T) {
+func TestScan_EmptySegment(t *testing.T) {
 	mock := &MockFetcher{}
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: []models.Candle{},
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: []models.Candle{},
+		},
+		Tickers: []string{"AAPL"},
 	}
-	tickers := []string{"AAPL"}
-	from := time.Now()
-	to := time.Now().Add(24 * time.Hour)
 
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -85,19 +85,19 @@ func TestFindMatches_EmptySegment(t *testing.T) {
 	}
 }
 
-func TestFindMatches_EmptyTickers(t *testing.T) {
+func TestScan_EmptyTickers(t *testing.T) {
 	mock := &MockFetcher{}
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: []models.Candle{
-			{Open: 100, Close: 110, High: 115, Low: 95},
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: []models.Candle{
+				{Open: 100, Close: 110, High: 115, Low: 95},
+			},
 		},
+		Tickers: []string{},
 	}
-	tickers := []string{}
-	from := time.Now()
-	to := time.Now().Add(24 * time.Hour)
 
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -107,23 +107,23 @@ func TestFindMatches_EmptyTickers(t *testing.T) {
 	}
 }
 
-func TestFindMatches_FetcherError(t *testing.T) {
+func TestScan_FetcherError(t *testing.T) {
 	mock := &MockFetcher{
 		fetchFunc: func(ticker string, from, to time.Time) ([]models.Candle, error) {
 			return nil, errors.New("fetch error")
 		},
 	}
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: []models.Candle{
-			{Open: 100, Close: 110, High: 115, Low: 95},
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: []models.Candle{
+				{Open: 100, Close: 110, High: 115, Low: 95},
+			},
 		},
+		Tickers: []string{"AAPL"},
 	}
-	tickers := []string{"AAPL"}
-	from := time.Now()
-	to := time.Now().Add(24 * time.Hour)
 
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -135,7 +135,7 @@ func TestFindMatches_FetcherError(t *testing.T) {
 
 // Тестирование основной функциональности
 
-func TestFindMatches_NoMatches(t *testing.T) {
+func TestScan_NoMatches(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	mock := &MockFetcher{
@@ -149,17 +149,19 @@ func TestFindMatches_NoMatches(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: []models.Candle{
-			{Date: baseDate, Open: 100, Close: 110, High: 115, Low: 95},
-			{Date: baseDate.Add(24 * time.Hour), Open: 110, Close: 120, High: 125, Low: 105},
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: []models.Candle{
+				{Date: baseDate, Open: 100, Close: 110, High: 115, Low: 95},
+				{Date: baseDate.Add(24 * time.Hour), Open: 110, Close: 120, High: 125, Low: 105},
+			},
 		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(48 * time.Hour),
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(48 * time.Hour)
 
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -169,7 +171,7 @@ func TestFindMatches_NoMatches(t *testing.T) {
 	}
 }
 
-func TestFindMatches_ExactMatch(t *testing.T) {
+func TestScan_ExactMatch(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// Создаем сегмент из двух свечей
@@ -191,20 +193,21 @@ func TestFindMatches_ExactMatch(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(120 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         0,
+			BodyTolerance:   0.01,
+			ShadowTolerance: 0.01,
+		},
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(120 * time.Hour)
 
-	options := &ScanOptions{
-		TailLen:         0,
-		BodyTolerance:   0.01,
-		ShadowTolerance: 0.01,
-	}
-
-	matches, err := s.FindMatches(segment, tickers, from, to, options)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -222,7 +225,7 @@ func TestFindMatches_ExactMatch(t *testing.T) {
 	}
 }
 
-func TestFindMatches_MultipleMatches(t *testing.T) {
+func TestScan_MultipleMatches(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	pattern := []models.Candle{
@@ -241,20 +244,21 @@ func TestFindMatches_MultipleMatches(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(96 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         0,
+			BodyTolerance:   0.01,
+			ShadowTolerance: 0.01,
+		},
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(96 * time.Hour)
 
-	options := &ScanOptions{
-		TailLen:         0,
-		BodyTolerance:   0.01,
-		ShadowTolerance: 0.01,
-	}
-
-	matches, err := s.FindMatches(segment, tickers, from, to, options)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -264,7 +268,7 @@ func TestFindMatches_MultipleMatches(t *testing.T) {
 	}
 }
 
-func TestFindMatches_MultipleTickers(t *testing.T) {
+func TestScan_MultipleTickers(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	pattern := []models.Candle{
@@ -281,20 +285,21 @@ func TestFindMatches_MultipleTickers(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL", "GOOGL", "MSFT"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(48 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         0,
+			BodyTolerance:   0.01,
+			ShadowTolerance: 0.01,
+		},
 	}
-	tickers := []string{"AAPL", "GOOGL", "MSFT"}
-	from := baseDate
-	to := baseDate.Add(48 * time.Hour)
 
-	options := &ScanOptions{
-		TailLen:         0,
-		BodyTolerance:   0.01,
-		ShadowTolerance: 0.01,
-	}
-
-	matches, err := s.FindMatches(segment, tickers, from, to, options)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -308,7 +313,7 @@ func TestFindMatches_MultipleTickers(t *testing.T) {
 	for _, match := range matches {
 		tickerMap[match.Ticker] = true
 	}
-	for _, ticker := range tickers {
+	for _, ticker := range query.Tickers {
 		if !tickerMap[ticker] {
 			t.Errorf("expected to find ticker %s in matches", ticker)
 		}
@@ -317,7 +322,7 @@ func TestFindMatches_MultipleTickers(t *testing.T) {
 
 // Тестирование параметров сканирования
 
-func TestFindMatches_WithTailLen(t *testing.T) {
+func TestScan_WithTailLen(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// Паттерн с хвостом (первая свеча падает, вторая растет)
@@ -340,20 +345,21 @@ func TestFindMatches_WithTailLen(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(144 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         1, // первая свеча - хвост
+			BodyTolerance:   0.01,
+			ShadowTolerance: 0.01,
+		},
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(144 * time.Hour)
 
-	options := &ScanOptions{
-		TailLen:         1, // первая свеча - хвост
-		BodyTolerance:   0.01,
-		ShadowTolerance: 0.01,
-	}
-
-	matches, err := s.FindMatches(segment, tickers, from, to, options)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -363,7 +369,7 @@ func TestFindMatches_WithTailLen(t *testing.T) {
 	}
 }
 
-func TestFindMatches_WithTolerance(t *testing.T) {
+func TestScan_WithTolerance(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	pattern := []models.Candle{
@@ -382,30 +388,30 @@ func TestFindMatches_WithTolerance(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(48 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         0,
+			BodyTolerance:   0.1,
+			ShadowTolerance: 0.1,
+		},
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(48 * time.Hour)
 
-	// С большим tolerance должно найти совпадение
-	optionsHigh := &ScanOptions{
-		TailLen:         0,
-		BodyTolerance:   0.1,
-		ShadowTolerance: 0.1,
-	}
-
-	matchesHigh, err := s.FindMatches(segment, tickers, from, to, optionsHigh)
+	matches, err := s.Scan(query)
 	if err != nil {
 		t.Errorf("expected no error with high tolerance, got %v", err)
 	}
-	if len(matchesHigh) == 0 {
-		t.Errorf("expected at least 1 match with high tolerance, got %d", len(matchesHigh))
+	if len(matches) == 0 {
+		t.Errorf("expected at least 1 match with high tolerance, got %d", len(matches))
 	}
 }
 
-func TestFindMatches_DefaultOptions(t *testing.T) {
+func TestScan_DefaultOptions(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	pattern := []models.Candle{
@@ -421,15 +427,17 @@ func TestFindMatches_DefaultOptions(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(48 * time.Hour),
+		// Options не установлены - должны примениться дефолтные значения
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(48 * time.Hour)
 
-	// Тест с nil options (должны примениться дефолтные значения)
-	matches, err := s.FindMatches(segment, tickers, from, to, nil)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -439,7 +447,7 @@ func TestFindMatches_DefaultOptions(t *testing.T) {
 	}
 }
 
-func TestFindMatches_TailLenGreaterThanSegment(t *testing.T) {
+func TestScan_TailLenGreaterThanSegment(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	pattern := []models.Candle{
@@ -455,31 +463,31 @@ func TestFindMatches_TailLenGreaterThanSegment(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(48 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         10,
+			BodyTolerance:   0.1,
+			ShadowTolerance: 0.1,
+		},
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(48 * time.Hour)
 
-	// TailLen больше длины сегмента - должно корректно обработаться
-	options := &ScanOptions{
-		TailLen:         10,
-		BodyTolerance:   0.1,
-		ShadowTolerance: 0.1,
-	}
-
-	matches, err := s.FindMatches(segment, tickers, from, to, options)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
-	if matches != nil {
-		t.Errorf("expected nil matches, got %v", matches)
+	if len(matches) != 0 {
+		t.Errorf("expected 0 matches, got %d", len(matches))
 	}
 }
 
-func TestFindMatches_NegativeTailLen(t *testing.T) {
+func TestScan_NegativeTailLen(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	pattern := []models.Candle{
@@ -495,21 +503,21 @@ func TestFindMatches_NegativeTailLen(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	segment := models.ChartSegment{
-		Candles: pattern,
+	query := &ScanQuery{
+		Segment: models.ChartSegment{
+			Candles: pattern,
+		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: baseDate,
+		SearchTo:   baseDate.Add(48 * time.Hour),
+		Options: ScanOptions{
+			TailLen:         -5,
+			BodyTolerance:   0.1,
+			ShadowTolerance: 0.1,
+		},
 	}
-	tickers := []string{"AAPL"}
-	from := baseDate
-	to := baseDate.Add(48 * time.Hour)
 
-	// Отрицательный TailLen - должен быть скорректирован до 0
-	options := &ScanOptions{
-		TailLen:         -5,
-		BodyTolerance:   0.1,
-		ShadowTolerance: 0.1,
-	}
-
-	matches, err := s.FindMatches(segment, tickers, from, to, options)
+	matches, err := s.Scan(query)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -520,7 +528,7 @@ func TestFindMatches_NegativeTailLen(t *testing.T) {
 	}
 }
 
-// IsOverlap tests
+// IsOverlap tests (остаются без изменений)
 
 func TestIsOverlap_DifferentTickers(t *testing.T) {
 	baseDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
