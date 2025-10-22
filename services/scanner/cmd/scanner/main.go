@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"os"
+	"os/signal"
 
 	"github.com/m1keee3/FinanceAnalyst/pkg/logger/handlers/slogpretty"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/app"
@@ -22,11 +23,20 @@ func main() {
 
 	application := app.New(log, cfg.Grpc.Port)
 
-	application.GRPCServer.MustRun()
+	go application.GRPCServer.MustRun()
 
 	// TODO db application
 
-	// TODO grpc сервис
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+
+	sign := <-stop
+
+	log.Info("scanner stopped", slog.Any("signal", sign.String()))
+
+	application.GRPCServer.Stop()
+
+	log.Info("scanner stopped")
 }
 
 func setupLogger(env string) *slog.Logger {
