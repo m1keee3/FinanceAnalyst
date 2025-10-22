@@ -2,9 +2,10 @@ package stats
 
 import (
 	"fmt"
-	"github.com/m1keee3/FinanceAnalyst/common/models"
 	"log"
 	"time"
+
+	"github.com/m1keee3/FinanceAnalyst/common/models"
 )
 
 type Fetcher interface {

@@ -2,9 +2,10 @@ package stats
 
 import (
 	"errors"
-	"github.com/m1keee3/FinanceAnalyst/common/models"
 	"testing"
 	"time"
+
+	"github.com/m1keee3/FinanceAnalyst/common/models"
 )
 
 // MockFetcher для тестирования
