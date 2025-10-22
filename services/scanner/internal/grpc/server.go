@@ -9,13 +9,14 @@ import (
 
 type serverAPI struct {
 	scannerv1.UnimplementedScannerServiceServer
+	scanner Scanner
 }
 
 func Register(grpcServer *grpc.Server) {
 	scannerv1.RegisterScannerServiceServer(grpcServer, &serverAPI{})
 }
 
-/*type Scanner interface {
+type Scanner interface {
 	// Поиск свечных паттернов
 	FindCandleMatches(context.Context, *scannerv1.CandleScanRequest) (*scannerv1.ScanResponse, error)
 	// Поиск графических паттернов
@@ -24,20 +25,4 @@ func Register(grpcServer *grpc.Server) {
 	ComputeCandleStats(context.Context, *scannerv1.ComputeStatsCandleRequest) (*scannerv1.ComputeStatsResponse, error)
 	// Вычисление статистики для графических паттернов
 	ComputeChartStats(context.Context, *scannerv1.ComputeStatsChartRequest) (*scannerv1.ComputeStatsResponse, error)
-}*/
-
-func (s *serverAPI) FindCandleMatches(ctx context.Context, request *scannerv1.CandleScanRequest) (*scannerv1.ScanResponse, error) {
-	panic("implement me")
-}
-
-func (s *serverAPI) FindChartMatches(ctx context.Context, request *scannerv1.ChartScanRequest) (*scannerv1.ScanResponse, error) {
-	panic("implement me")
-}
-
-func (s *serverAPI) ComputeCandleStats(ctx context.Context, request *scannerv1.ComputeStatsCandleRequest) (*scannerv1.ComputeStatsResponse, error) {
-	panic("implement me")
-}
-
-func (s *serverAPI) ComputeChartStats(ctx context.Context, request *scannerv1.ComputeStatsChartRequest) (*scannerv1.ComputeStatsResponse, error) {
-	panic("implement me")
 }
