@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/mapper"
 	scannerv1 "github.com/m1keee3/FinanceAnalyst/services/scanner/proto-gen/v1"
 )
 
@@ -20,8 +21,8 @@ type ScanQuery struct {
 
 // NewScanQuery создает ScanQuery из proto запроса
 func NewScanQuery(req *scannerv1.ChartScanRequest) *ScanQuery {
-	segment := protoToChartSegment(req.GetSegment())
-	options := protoToChartScanOptions(req.GetOptions())
+	segment := mapper.FromProtoChartSegment(req.GetSegment())
+	options := FromProtoChartScanOptions(req.GetOptions())
 
 	return &ScanQuery{
 		Segment:    segment,
@@ -43,33 +44,8 @@ func (q ScanQuery) Hash() string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// protoToChartSegment конвертирует proto ChartSegment в models.ChartSegment
-func protoToChartSegment(proto *scannerv1.ChartSegment) models.ChartSegment {
-	if proto == nil {
-		return models.ChartSegment{}
-	}
-
-	candles := make([]models.Candle, len(proto.GetCandles()))
-	for i, c := range proto.GetCandles() {
-		candles[i] = models.Candle{
-			Date:  c.GetDate().AsTime(),
-			Open:  c.GetOpen(),
-			High:  c.GetHigh(),
-			Low:   c.GetLow(),
-			Close: c.GetClose(),
-		}
-	}
-
-	return models.ChartSegment{
-		Ticker:  proto.GetTicker(),
-		From:    proto.GetFrom().AsTime(),
-		To:      proto.GetTo().AsTime(),
-		Candles: candles,
-	}
-}
-
-// protoToChartScanOptions конвертирует proto ChartScanOptions в ScanOptions
-func protoToChartScanOptions(proto *scannerv1.ChartScanOptions) ScanOptions {
+// FromProtoChartScanOptions конвертирует proto ChartScanOptions в ScanOptions
+func FromProtoChartScanOptions(proto *scannerv1.ChartScanOptions) ScanOptions {
 	if proto == nil {
 		return ScanOptions{}
 	}
