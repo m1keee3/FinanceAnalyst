@@ -25,7 +25,6 @@ func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
 		return nil, nil
 	}
 
-	// Если запрос не передан, возвращаем пустой результат
 	if query == nil {
 		return nil, nil
 	}
@@ -78,9 +77,6 @@ type match struct {
 
 // FindMatches ищет похожие паттерны в данных тикеров используя DTW алгоритм
 func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
-	if s == nil || s.fetcher == nil {
-		return nil, nil
-	}
 
 	if len(segment.Candles) == 0 || len(tickers) == 0 {
 		return nil, nil

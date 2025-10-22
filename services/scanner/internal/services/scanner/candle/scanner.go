@@ -63,9 +63,6 @@ func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
 // tailLen — длина начального хвоста в свечах, tolerance — допуск по процентно-изменению для основной части,
 // searchFrom/searchTo — период, в котором искать по каждому тикеру.
 func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
-	if s == nil || s.fetcher == nil {
-		return nil, nil
-	}
 
 	if len(segment.Candles) == 0 || len(tickers) == 0 {
 		return nil, nil
