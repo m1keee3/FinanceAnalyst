@@ -1,4 +1,4 @@
-package internal
+package scanner
 
 import (
 	"github.com/m1keee3/FinanceAnalyst/common/models"
