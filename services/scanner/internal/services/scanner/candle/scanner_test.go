@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	candlemodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/candle/models"
 )
 
 // MockFetcher для тестирования
@@ -25,7 +26,7 @@ func (m *MockFetcher) Fetch(ticker string, from, to time.Time) ([]models.Candle,
 
 func TestScan_NilScanner(t *testing.T) {
 	var s *Scanner
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: []models.Candle{
 				{Open: 100, Close: 110, High: 115, Low: 95},
@@ -46,7 +47,7 @@ func TestScan_NilScanner(t *testing.T) {
 
 func TestScan_NilFetcher(t *testing.T) {
 	s := &Scanner{fetcher: nil}
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: []models.Candle{
 				{Open: 100, Close: 110, High: 115, Low: 95},
@@ -68,7 +69,7 @@ func TestScan_NilFetcher(t *testing.T) {
 func TestScan_EmptySegment(t *testing.T) {
 	mock := &MockFetcher{}
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: []models.Candle{},
 		},
@@ -88,7 +89,7 @@ func TestScan_EmptySegment(t *testing.T) {
 func TestScan_EmptyTickers(t *testing.T) {
 	mock := &MockFetcher{}
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: []models.Candle{
 				{Open: 100, Close: 110, High: 115, Low: 95},
@@ -114,7 +115,7 @@ func TestScan_FetcherError(t *testing.T) {
 		},
 	}
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: []models.Candle{
 				{Open: 100, Close: 110, High: 115, Low: 95},
@@ -149,7 +150,7 @@ func TestScan_NoMatches(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: []models.Candle{
 				{Date: baseDate, Open: 100, Close: 110, High: 115, Low: 95},
@@ -193,14 +194,14 @@ func TestScan_ExactMatch(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(120 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         0,
 			BodyTolerance:   0.01,
 			ShadowTolerance: 0.01,
@@ -244,14 +245,14 @@ func TestScan_MultipleMatches(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(96 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         0,
 			BodyTolerance:   0.01,
 			ShadowTolerance: 0.01,
@@ -285,14 +286,14 @@ func TestScan_MultipleTickers(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL", "GOOGL", "MSFT"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(48 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         0,
 			BodyTolerance:   0.01,
 			ShadowTolerance: 0.01,
@@ -345,14 +346,14 @@ func TestScan_WithTailLen(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(144 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         1, // первая свеча - хвост
 			BodyTolerance:   0.01,
 			ShadowTolerance: 0.01,
@@ -388,14 +389,14 @@ func TestScan_WithTolerance(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(48 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         0,
 			BodyTolerance:   0.1,
 			ShadowTolerance: 0.1,
@@ -427,7 +428,7 @@ func TestScan_DefaultOptions(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
@@ -463,14 +464,14 @@ func TestScan_TailLenGreaterThanSegment(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(48 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         10,
 			BodyTolerance:   0.1,
 			ShadowTolerance: 0.1,
@@ -503,14 +504,14 @@ func TestScan_NegativeTailLen(t *testing.T) {
 	}
 
 	s := NewScanner(mock)
-	query := &ScanQuery{
+	query := &candlemodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: pattern,
 		},
 		Tickers:    []string{"AAPL"},
 		SearchFrom: baseDate,
 		SearchTo:   baseDate.Add(48 * time.Hour),
-		Options: ScanOptions{
+		Options: candlemodels.ScanOptions{
 			TailLen:         -5,
 			BodyTolerance:   0.1,
 			ShadowTolerance: 0.1,

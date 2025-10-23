@@ -5,7 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/m1keee3/FinanceAnalyst/common/models"
+	"github.com/m1keee3/FinanceAnalyst/pkg/logger/sl"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/cache"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/mapper"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/candle"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart"
 	scannerv1 "github.com/m1keee3/FinanceAnalyst/services/scanner/proto-gen/v1"

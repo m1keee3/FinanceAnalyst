@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	chartmodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart/models"
 )
 
 // MockFetcher для тестирования
@@ -64,7 +65,7 @@ func createTestCandles(count int, basePrice float64, pattern string) []models.Ca
 func TestScan_NilScanner(t *testing.T) {
 	var scanner *Scanner
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: createTestCandles(10, 100.0, "up"),
 		},
@@ -86,7 +87,7 @@ func TestScan_NilScanner(t *testing.T) {
 func TestScan_NilFetcher(t *testing.T) {
 	scanner := &Scanner{fetcher: nil}
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Candles: createTestCandles(10, 100.0, "up"),
 		},
@@ -109,7 +110,7 @@ func TestScan_EmptySegment(t *testing.T) {
 	mockFetcher := NewMockFetcher()
 	scanner := NewScanner(mockFetcher)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: []models.Candle{},
@@ -134,7 +135,7 @@ func TestScan_EmptyTickers(t *testing.T) {
 	mockFetcher := NewMockFetcher()
 	scanner := NewScanner(mockFetcher)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: createTestCandles(10, 100.0, "up"),
@@ -161,7 +162,7 @@ func TestScan_ShortSegment(t *testing.T) {
 
 	mockFetcher.AddData("SBER", createTestCandles(100, 100.0, "up"))
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: createTestCandles(2, 100.0, "up"),
@@ -190,7 +191,7 @@ func TestScan_ExactMatch(t *testing.T) {
 	mockFetcher.AddData("SBER", pattern)
 	mockFetcher.AddData("GAZP", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "SBER",
 			Candles: pattern[:10],
@@ -198,7 +199,7 @@ func TestScan_ExactMatch(t *testing.T) {
 		Tickers:    []string{"SBER", "GAZP"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.9,
 			MaxScale:  1.1,
 			Tolerance: 0.5,
@@ -226,7 +227,7 @@ func TestScan_NoMatches(t *testing.T) {
 	mockFetcher.AddData("SBER", downPattern)
 	mockFetcher.AddData("GAZP", downPattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: upPattern[:10],
@@ -234,7 +235,7 @@ func TestScan_NoMatches(t *testing.T) {
 		Tickers:    []string{"SBER", "GAZP"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.9,
 			MaxScale:  1.1,
 			Tolerance: 0.01,
@@ -261,7 +262,7 @@ func TestScan_MultipleTickers(t *testing.T) {
 	mockFetcher.AddData("GAZP", pattern)
 	mockFetcher.AddData("LKOH", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: pattern[:15],
@@ -269,7 +270,7 @@ func TestScan_MultipleTickers(t *testing.T) {
 		Tickers:    []string{"SBER", "GAZP", "LKOH"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.9,
 			MaxScale:  1.1,
 			Tolerance: 0.3,
@@ -292,7 +293,7 @@ func TestScan_LongCandles(t *testing.T) {
 	longPattern := createTestCandles(200, 100.0, "up")
 	mockFetcher.AddData("SBER", longPattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: longPattern[:50],
@@ -300,7 +301,7 @@ func TestScan_LongCandles(t *testing.T) {
 		Tickers:    []string{"SBER"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.9,
 			MaxScale:  1.1,
 			Tolerance: 0.3,
@@ -325,7 +326,7 @@ func TestScan_NarrowScale(t *testing.T) {
 	pattern := createTestCandles(50, 100.0, "up")
 	mockFetcher.AddData("SBER", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: pattern[:20],
@@ -333,7 +334,7 @@ func TestScan_NarrowScale(t *testing.T) {
 		Tickers:    []string{"SBER"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.95,
 			MaxScale:  1.05,
 			Tolerance: 0.5,
@@ -356,7 +357,7 @@ func TestScan_WideScale(t *testing.T) {
 	pattern := createTestCandles(50, 100.0, "up")
 	mockFetcher.AddData("SBER", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: pattern[:20],
@@ -364,7 +365,7 @@ func TestScan_WideScale(t *testing.T) {
 		Tickers:    []string{"SBER"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.5,
 			MaxScale:  2.0,
 			Tolerance: 0.5,
@@ -387,7 +388,7 @@ func TestScan_ExactScale(t *testing.T) {
 	pattern := createTestCandles(50, 100.0, "up")
 	mockFetcher.AddData("SBER", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: pattern[:20],
@@ -395,7 +396,7 @@ func TestScan_ExactScale(t *testing.T) {
 		Tickers:    []string{"SBER"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  1.0,
 			MaxScale:  1.0,
 			Tolerance: 0.5,
@@ -418,7 +419,7 @@ func TestScan_StrictTolerance(t *testing.T) {
 	pattern := createTestCandles(30, 100.0, "up")
 	mockFetcher.AddData("SBER", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: pattern[:15],
@@ -426,7 +427,7 @@ func TestScan_StrictTolerance(t *testing.T) {
 		Tickers:    []string{"SBER"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.9,
 			MaxScale:  1.1,
 			Tolerance: 0.05,
@@ -450,7 +451,7 @@ func TestScan_LooseTolerance(t *testing.T) {
 	downPattern := createTestCandles(30, 100.0, "down")
 	mockFetcher.AddData("SBER", downPattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: upPattern[:15],
@@ -458,7 +459,7 @@ func TestScan_LooseTolerance(t *testing.T) {
 		Tickers:    []string{"SBER"},
 		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: ScanOptions{
+		Options: chartmodels.ScanOptions{
 			MinScale:  0.9,
 			MaxScale:  1.1,
 			Tolerance: 0.9,
@@ -481,7 +482,7 @@ func TestScan_DefaultOptions(t *testing.T) {
 	pattern := createTestCandles(30, 100.0, "volatile")
 	mockFetcher.AddData("SBER", pattern)
 
-	query := &ScanQuery{
+	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
 			Ticker:  "TEST",
 			Candles: pattern[:15],
