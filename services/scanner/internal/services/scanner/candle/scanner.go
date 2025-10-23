@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	candlemodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/candle/models"
 )
 
 type Fetcher interface {
@@ -22,32 +23,8 @@ func NewScanner(fetcher Fetcher) *Scanner {
 	return &Scanner{fetcher: fetcher}
 }
 
-// ScanOptions определяет параметры сравнения свечей
-type ScanOptions struct {
-	TailLen         int
-	BodyTolerance   float64
-	ShadowTolerance float64
-}
-
-func (o *ScanOptions) withDefaults() ScanOptions {
-	out := ScanOptions{TailLen: 0, BodyTolerance: 0.1, ShadowTolerance: 0.1}
-	if o == nil {
-		return out
-	}
-	if o.TailLen > 0 {
-		out.TailLen = o.TailLen
-	}
-	if o.BodyTolerance > 0 {
-		out.BodyTolerance = o.BodyTolerance
-	}
-	if o.ShadowTolerance > 0 {
-		out.ShadowTolerance = o.ShadowTolerance
-	}
-	return out
-}
-
 // Scan выполняет поиск совпадений с использованием переданного запроса
-func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
+func (s *Scanner) Scan(query *candlemodels.ScanQuery) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
 		return nil, nil
 	}
@@ -62,13 +39,13 @@ func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
 // FindMatches ищет совпадения для заданного сегмента на указанных тикерах по всему периоду поиска.
 // tailLen — длина начального хвоста в свечах, tolerance — допуск по процентно-изменению для основной части,
 // searchFrom/searchTo — период, в котором искать по каждому тикеру.
-func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
+func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *candlemodels.ScanOptions) ([]models.ChartSegment, error) {
 
 	if len(segment.Candles) == 0 || len(tickers) == 0 {
 		return nil, nil
 	}
 
-	opts := options.withDefaults()
+	opts := options.WithDefaults()
 	L := len(segment.Candles)
 	if opts.TailLen < 0 {
 		opts.TailLen = 0

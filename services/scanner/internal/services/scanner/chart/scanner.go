@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
+	chartmodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart/models"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/pkg/utils"
 )
 
@@ -20,7 +21,7 @@ type Scanner struct {
 
 // TODO убрать самого себя
 // Scan выполняет поиск совпадений с использованием переданного запроса
-func (s *Scanner) Scan(query *ScanQuery) ([]models.ChartSegment, error) {
+func (s *Scanner) Scan(query *chartmodels.ScanQuery) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
 		return nil, nil
 	}
@@ -38,37 +39,6 @@ func NewScanner(fetcher Fetcher) *Scanner {
 	}
 }
 
-// ScanOptions определяет параметры сканирования графиков с использованием DTW
-type ScanOptions struct {
-	// MinScale минимальная длина сегмента относительно входного
-	MinScale float64
-	// MaxScale максимальная длина сегмента относительно входного
-	MaxScale float64
-	// Tolerance допустимая степень отличия от 0 до 1, где 0 = идентичные графики, 1 = максимальное отличие
-	Tolerance float64
-}
-
-func (o *ScanOptions) withDefaults() ScanOptions {
-	out := ScanOptions{
-		MinScale:  0.75,
-		MaxScale:  1.5,
-		Tolerance: 0.1,
-	}
-	if o == nil {
-		return out
-	}
-	if o.MinScale > 0 {
-		out.MinScale = o.MinScale
-	}
-	if o.MaxScale > 0 {
-		out.MaxScale = o.MaxScale
-	}
-	if o.Tolerance > 0 && o.Tolerance <= 1.0 {
-		out.Tolerance = o.Tolerance
-	}
-	return out
-}
-
 // match представляет найденное совпадение с метрикой качества
 type match struct {
 	Segment  models.ChartSegment
@@ -76,13 +46,13 @@ type match struct {
 }
 
 // FindMatches ищет похожие паттерны в данных тикеров используя DTW алгоритм
-func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *ScanOptions) ([]models.ChartSegment, error) {
+func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *chartmodels.ScanOptions) ([]models.ChartSegment, error) {
 
 	if len(segment.Candles) == 0 || len(tickers) == 0 {
 		return nil, nil
 	}
 
-	opts := options.withDefaults()
+	opts := options.WithDefaults()
 	seedLen := len(segment.Candles)
 
 	minLen := int(float64(seedLen) * opts.MinScale)

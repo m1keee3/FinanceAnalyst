@@ -1,4 +1,4 @@
-package candle
+package models
 
 import (
 	"crypto/sha256"
@@ -20,9 +20,9 @@ type ScanQuery struct {
 }
 
 // NewScanQuery создает ScanQuery из proto запроса
-func NewScanQuery(req *scannerv1.CandleScanRequest) *ScanQuery {
+func NewScanQuery(req *scannerv1.ChartScanRequest) *ScanQuery {
 	segment := mapper.FromProtoChartSegment(req.GetSegment())
-	options := FromProtoCandleScanOptions(req.GetOptions())
+	options := FromProtoChartScanOptions(req.GetOptions())
 
 	return &ScanQuery{
 		Segment:    segment,
@@ -44,15 +44,15 @@ func (q ScanQuery) Hash() string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// FromProtoCandleScanOptions конвертирует proto CandleScanOptions в ScanOptions
-func FromProtoCandleScanOptions(proto *scannerv1.CandleScanOptions) ScanOptions {
+// FromProtoChartScanOptions конвертирует proto ChartScanOptions в ScanOptions
+func FromProtoChartScanOptions(proto *scannerv1.ChartScanOptions) ScanOptions {
 	if proto == nil {
 		return ScanOptions{}
 	}
 
 	return ScanOptions{
-		TailLen:         int(proto.GetTailLen()),
-		BodyTolerance:   proto.GetBodyTolerance(),
-		ShadowTolerance: proto.GetShadowTolerance(),
+		MinScale:  proto.GetMinScale(),
+		MaxScale:  proto.GetMaxScale(),
+		Tolerance: proto.GetTolerance(),
 	}
 }
