@@ -1,4 +1,4 @@
-package models
+package chart
 
 // ScanOptions определяет параметры сравнения графиков
 type ScanOptions struct {

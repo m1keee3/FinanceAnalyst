@@ -1,4 +1,4 @@
-package models
+package candle
 
 // ScanOptions определяет параметры сравнения свечей
 type ScanOptions struct {

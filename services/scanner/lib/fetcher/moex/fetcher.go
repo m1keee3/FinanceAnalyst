@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
-	"github.com/m1keee3/FinanceAnalyst/services/scanner/pkg/utils"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/lib/utils"
 )
 
 const year = 365 * 24 * time.Hour
