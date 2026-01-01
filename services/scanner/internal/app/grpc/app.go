@@ -6,6 +6,7 @@ import (
 	"net"
 
 	scannergrpc "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/grpc"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner"
 	"google.golang.org/grpc"
 )
 
@@ -17,11 +18,12 @@ type App struct {
 
 func New(
 	log *slog.Logger,
+	scannerService *scanner.Service,
 	port int,
 ) *App {
 	grpcServer := grpc.NewServer()
 
-	scannergrpc.Register(grpcServer)
+	scannergrpc.Register(grpcServer, scannerService)
 
 	return &App{
 		log:        log,

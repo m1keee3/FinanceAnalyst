@@ -32,11 +32,11 @@ func main() {
 
 	sign := <-stop
 
-	log.Info("scanner stopped", slog.Any("signal", sign.String()))
+	log.Info("stopping server:", slog.Any("signal", sign.String()))
 
 	application.GRPCServer.Stop()
 
-	log.Info("scanner stopped")
+	log.Info("server stopped")
 }
 
 func setupLogger(env string) *slog.Logger {

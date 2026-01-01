@@ -2,8 +2,16 @@ package app
 
 import (
 	"log/slog"
+	"time"
 
 	grpcapp "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/app/grpc"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/cache/redis"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/candle"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/stats"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/lib/fetcher/moex"
+	_default "github.com/m1keee3/FinanceAnalyst/services/scanner/lib/ttl_resolver/default"
 )
 
 type App struct {
@@ -15,9 +23,19 @@ func New(
 	grpcPort int,
 ) *App {
 
-	// TODO db
-	// TODO service
-	grpcApp := grpcapp.New(log, grpcPort)
+	cache := redis.NewCache()
+
+	fetcher := moex.NewFetcher()
+	scannerService := scanner.NewService(
+		log,
+		candle.NewScanner(log, fetcher),
+		chart.NewScanner(log, fetcher),
+		stats.NewComputer(fetcher),
+		cache,
+		_default.NewTTLResolver(time.Minute*5, time.Hour*3),
+	)
+
+	grpcApp := grpcapp.New(log, scannerService, grpcPort)
 
 	return &App{
 		GRPCServer: grpcApp,

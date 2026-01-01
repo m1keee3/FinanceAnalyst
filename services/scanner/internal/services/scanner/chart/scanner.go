@@ -1,14 +1,17 @@
 package chart
 
 import (
+	"errors"
+	"fmt"
+	"log/slog"
 	"runtime"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
-	chartmodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart/models"
-	"github.com/m1keee3/FinanceAnalyst/services/scanner/pkg/utils"
+	chartmodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/chart"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/lib/utils"
 )
 
 type Fetcher interface {
@@ -16,27 +19,28 @@ type Fetcher interface {
 }
 
 type Scanner struct {
+	logger  *slog.Logger
 	fetcher Fetcher
 }
 
-// TODO убрать самого себя
+func NewScanner(logger *slog.Logger, fetcher Fetcher) *Scanner {
+	return &Scanner{
+		logger:  logger,
+		fetcher: fetcher,
+	}
+}
+
 // Scan выполняет поиск совпадений с использованием переданного запроса
 func (s *Scanner) Scan(query *chartmodels.ScanQuery) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
-		return nil, nil
+		return nil, errors.New("nil fetcher")
 	}
 
 	if query == nil {
-		return nil, nil
+		return nil, errors.New("nil query")
 	}
 
 	return s.findMatches(query.Segment, query.Tickers, query.SearchFrom, query.SearchTo, &query.Options)
-}
-
-func NewScanner(fetcher Fetcher) *Scanner {
-	return &Scanner{
-		fetcher: fetcher,
-	}
 }
 
 // match представляет найденное совпадение с метрикой качества
@@ -47,13 +51,21 @@ type match struct {
 
 // FindMatches ищет похожие паттерны в данных тикеров используя DTW алгоритм
 func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *chartmodels.ScanOptions) ([]models.ChartSegment, error) {
+	seedCandles, err := s.fetcher.Fetch(segment.Ticker, segment.From, segment.To)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch candles from: %w", err)
+	}
 
-	if len(segment.Candles) == 0 || len(tickers) == 0 {
-		return nil, nil
+	seedLen := len(seedCandles)
+	if seedLen == 0 {
+		return nil, errors.New("there is no segment candles to analyze")
+	}
+
+	if len(tickers) == 0 {
+		return nil, errors.New("no ticker to search")
 	}
 
 	opts := options.WithDefaults()
-	seedLen := len(segment.Candles)
 
 	minLen := int(float64(seedLen) * opts.MinScale)
 	maxLen := int(float64(seedLen) * opts.MaxScale)
@@ -61,15 +73,17 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 		minLen = 1
 	}
 
-	seedVec := getPricesVec(segment.Candles, len(segment.Candles)*2)
+	seedVec := getPricesVec(seedCandles, seedLen*2)
 
 	resampledLength := len(seedVec)
 
-	var allMatches []match
-	var mu sync.Mutex
+	numWorkers := runtime.NumCPU()
+	if numWorkers > len(tickers) {
+		numWorkers = len(tickers)
+	}
 
-	// Параллельная обработка тикеров
 	tickerCh := make(chan string, len(tickers))
+	matchCh := make(chan match, 1024)
 	var wg sync.WaitGroup
 
 	worker := func() {
@@ -77,24 +91,19 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 		for ticker := range tickerCh {
 			candles, err := s.fetcher.Fetch(ticker, searchFrom, searchTo)
 			if err != nil {
-				continue
+				s.logger.Warn("error in worker, failed to fetch candles: ", err)
 			}
 
 			if len(candles) < minLen {
-				continue
+				s.logger.Warn("there is no candles to analyze")
 			}
 
 			matches := s.findMatchesForSeed(seedVec, ticker, candles, minLen, maxLen, opts.Tolerance, resampledLength)
 
-			mu.Lock()
-			allMatches = append(allMatches, matches...)
-			mu.Unlock()
+			for _, m := range matches {
+				matchCh <- m
+			}
 		}
-	}
-
-	numWorkers := runtime.NumCPU()
-	if numWorkers > len(tickers) {
-		numWorkers = len(tickers)
 	}
 
 	for i := 0; i < numWorkers; i++ {
@@ -107,12 +116,22 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 	}
 	close(tickerCh)
 
+	var matches []match
+	done := make(chan struct{})
+	go func() {
+		for m := range matchCh {
+			matches = append(matches, m)
+		}
+		close(done)
+	}()
+
 	wg.Wait()
 
-	allMatches = removeOverlaps(allMatches)
+	matches = removeOverlaps(matches)
+	matches = removeSeedSegment(segment, matches)
 
-	result := make([]models.ChartSegment, len(allMatches))
-	for i, m := range allMatches {
+	result := make([]models.ChartSegment, len(matches))
+	for i, m := range matches {
 		result[i] = m.Segment
 	}
 
@@ -201,10 +220,9 @@ func (s *Scanner) matchWorker(tasks <-chan int, wg *sync.WaitGroup, matchesCh ch
 		}
 
 		seg := models.ChartSegment{
-			Ticker:  ticker,
-			From:    matchCandles[0].Date,
-			To:      matchCandles[len(matchCandles)-1].Date,
-			Candles: matchCandles,
+			Ticker: ticker,
+			From:   matchCandles[0].Date,
+			To:     matchCandles[len(matchCandles)-1].Date,
 		}
 
 		normalizedDistance := d / float64(resampledLength)
@@ -236,6 +254,19 @@ func removeOverlaps(matches []match) []match {
 			}
 		}
 		if !overlaps {
+			result = append(result, m)
+		}
+	}
+
+	return result
+}
+
+// removeSeedSegment убирает seedSegment из matches
+func removeSeedSegment(seedSegment models.ChartSegment, matches []match) []match {
+	result := make([]match, 0, len(matches))
+
+	for _, m := range matches {
+		if !isOverlap(m.Segment, seedSegment) {
 			result = append(result, m)
 		}
 	}

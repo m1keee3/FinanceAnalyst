@@ -1,14 +1,16 @@
 package candle
 
 import (
-	"log"
+	"errors"
+	"fmt"
+	"log/slog"
 	"math"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
-	candlemodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/candle/models"
+	candlemodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/candle"
 )
 
 type Fetcher interface {
@@ -16,57 +18,67 @@ type Fetcher interface {
 }
 
 type Scanner struct {
+	logger  *slog.Logger
 	fetcher Fetcher
 }
 
-func NewScanner(fetcher Fetcher) *Scanner {
-	return &Scanner{fetcher: fetcher}
+func NewScanner(logger *slog.Logger, fetcher Fetcher) *Scanner {
+	return &Scanner{
+		logger:  logger,
+		fetcher: fetcher,
+	}
 }
 
 // Scan выполняет поиск совпадений с использованием переданного запроса
 func (s *Scanner) Scan(query *candlemodels.ScanQuery) ([]models.ChartSegment, error) {
 	if s == nil || s.fetcher == nil {
-		return nil, nil
+		return nil, errors.New("nil fetcher")
 	}
 
 	if query == nil {
-		return nil, nil
+		return nil, errors.New("nil query")
 	}
 
 	return s.findMatches(query.Segment, query.Tickers, query.SearchFrom, query.SearchTo, &query.Options)
 }
 
-// FindMatches ищет совпадения для заданного сегмента на указанных тикерах по всему периоду поиска.
+// findMatches ищет совпадения для заданного сегмента на указанных тикерах по всему периоду поиска.
 // tailLen — длина начального хвоста в свечах, tolerance — допуск по процентно-изменению для основной части,
 // searchFrom/searchTo — период, в котором искать по каждому тикеру.
 func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, searchFrom, searchTo time.Time, options *candlemodels.ScanOptions) ([]models.ChartSegment, error) {
+	segmentCandles, err := s.fetcher.Fetch(segment.Ticker, segment.From, segment.To)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch candles: %w", err)
+	}
+	segmentLen := len(segmentCandles)
 
-	if len(segment.Candles) == 0 || len(tickers) == 0 {
-		return nil, nil
+	if segmentLen == 0 {
+		return nil, errors.New("there is no segment candles to analyze")
+	}
+
+	if len(tickers) == 0 {
+		return nil, errors.New("no tickers to search")
 	}
 
 	opts := options.WithDefaults()
-	L := len(segment.Candles)
 	if opts.TailLen < 0 {
 		opts.TailLen = 0
 	}
-	if opts.TailLen > L {
-		opts.TailLen = L
+	if opts.TailLen > segmentLen {
+		opts.TailLen = segmentLen
 	}
 
-	normSegment := models.NormalizeCandles(segment.Candles)
+	normSegment := models.NormalizeCandles(segmentCandles)
 
 	targetTailSign := tailSign(normSegment[:opts.TailLen])
 
-	// Параллельная обработка тикеров
-	workerCount := runtime.NumCPU()
-	if workerCount < 2 {
-		workerCount = 2
+	numWorkers := runtime.NumCPU()
+	if numWorkers < 2 {
+		numWorkers = 2
 	}
 
 	tickerCh := make(chan string)
 	matchCh := make(chan models.ChartSegment, 1024)
-	errCh := make(chan error, workerCount)
 	var wg sync.WaitGroup
 
 	worker := func() {
@@ -74,14 +86,10 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 		for ticker := range tickerCh {
 			candles, err := s.fetcher.Fetch(ticker, searchFrom, searchTo)
 			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
-				continue
+				s.logger.Warn("error in worker, failed to fetch candles: ", err)
 			}
-			for i := 0; i+L <= len(candles); i++ {
-				window := candles[i : i+L]
+			for i := 0; i+segmentLen <= len(candles); i++ {
+				window := candles[i : i+segmentLen]
 				normWindow := models.NormalizeCandles(window)
 				if opts.TailLen > 0 {
 					if tailSign(normWindow[:opts.TailLen]) != targetTailSign {
@@ -95,10 +103,9 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 					opts.ShadowTolerance,
 				) {
 					match := models.ChartSegment{
-						Ticker:  ticker,
-						From:    window[0].Date,
-						To:      window[len(window)-1].Date,
-						Candles: append([]models.Candle(nil), window...),
+						Ticker: ticker,
+						From:   window[0].Date,
+						To:     window[len(window)-1].Date,
 					}
 					if !IsOverlap(segment, match) {
 						matchCh <- match
@@ -108,8 +115,8 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 		}
 	}
 
-	wg.Add(workerCount)
-	for i := 0; i < workerCount; i++ {
+	wg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
 		go worker()
 	}
 
@@ -133,14 +140,7 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 	close(matchCh)
 	<-done
 
-	for {
-		select {
-		case e := <-errCh:
-			log.Printf("error in worker: %v", e)
-		default:
-			return matches, nil
-		}
-	}
+	return matches, nil
 }
 
 // tailSign возвращает знак суммарного движения свечей (по цене Close-Open)

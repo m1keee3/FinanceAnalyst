@@ -12,17 +12,17 @@ type Fetcher interface {
 	Fetch(ticker string, from, to time.Time) ([]models.Candle, error)
 }
 
-type Evaluator struct {
+type Computer struct {
 	fetcher Fetcher
 }
 
-func NewEvaluator(fetcher Fetcher) *Evaluator {
-	return &Evaluator{fetcher: fetcher}
+func NewComputer(fetcher Fetcher) *Computer {
+	return &Computer{fetcher: fetcher}
 }
 
 // ComputeStats считает статистику по совпадениям для заданного сегмента.
 // daysToWatch это количество свечей после сегмента, которые надо рассмотреть, если daysToWatch = 0, то алгоритм рассматривает свечи пока они идут в одном направлении
-func (e *Evaluator) ComputeStats(matches []models.ChartSegment, daysToWatch int) (*models.ScanStats, error) {
+func (e *Computer) ComputeStats(matches []models.ChartSegment, daysToWatch int) (*models.ScanStats, error) {
 	if e == nil || e.fetcher == nil {
 		return &models.ScanStats{}, nil
 	}
@@ -100,7 +100,7 @@ func (e *Evaluator) ComputeStats(matches []models.ChartSegment, daysToWatch int)
 	}, nil
 }
 
-func (s *Evaluator) computeLineStats(matches []models.ChartSegment) (*models.ScanStats, error) {
+func (s *Computer) computeLineStats(matches []models.ChartSegment) (*models.ScanStats, error) {
 	var considered int
 	var posCtr int
 	var posSumChange float64
