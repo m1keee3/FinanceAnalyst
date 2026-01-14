@@ -9,24 +9,20 @@ import (
 )
 
 type Config struct {
-	Env  string     `yaml:"env" env-default:"development"`
-	Db   DbConfig   `yaml:"db"`
-	Grpc GrpcConfig `yaml:"grpc"`
-}
-
-type DbConfig struct {
-	Host     string `yaml:"host" env-default:"localhost"`
-	Port     string `yaml:"port" env-default:"5432"`
-	User     string `yaml:"user" env-required:"true"`
-	Password string `yaml:"password" env-required:"true"`
-	Name     string `yaml:"name" env-required:"true"`
-	SSLMode  string `yaml:"ssl_mode" env:"DB_SSL_MODE" env-default:"disable"`
+	Env   string      `yaml:"env" env-default:"development"`
+	Grpc  GrpcConfig  `yaml:"grpc"`
+	Redis RedisConfig `yaml:"redis"`
 }
 
 type GrpcConfig struct {
-	Host           string        `yaml:"host" env:"GRPC_HOST" env-default:"0.0.0.0"`
 	Port           int           `yaml:"port" env-default:"8080"`
 	RequestTimeout time.Duration `yaml:"request_timeout" env:"GRPC_TIMEOUT" env-default:"10s"`
+}
+
+type RedisConfig struct {
+	Addr     string `yaml:"addr" env:"REDIS_ADDR" env-default:"localhost:6379"`
+	Password string `yaml:"password" env:"REDIS_PASSWORD" env-required:"true"`
+	Db       int    `yaml:"db" env:"REDIS_DB" env-default:"0"`
 }
 
 func MustLoad() *Config {

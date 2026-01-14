@@ -1,13 +1,19 @@
 package grpcapp
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	scannergrpc "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/grpc"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type App struct {
@@ -20,8 +26,29 @@ func New(
 	log *slog.Logger,
 	scannerService *scanner.Service,
 	port int,
+	requestTimeout time.Duration,
 ) *App {
-	grpcServer := grpc.NewServer()
+	loggingOpts := []logging.Option{
+		logging.WithLogOnEvents(
+			logging.PayloadReceived,
+			logging.PayloadSent,
+		),
+	}
+
+	recoveryOpts := []recovery.Option{
+		recovery.WithRecoveryHandler(func(p interface{}) (err error) {
+			log.Error("Recovered from panic", slog.Any("panic", p))
+			return status.Errorf(codes.Internal, "internal error")
+		}),
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			recovery.UnaryServerInterceptor(recoveryOpts...),
+			logging.UnaryServerInterceptor(InterceptorLogger(log), loggingOpts...),
+		),
+		grpc.ConnectionTimeout(requestTimeout),
+	)
 
 	scannergrpc.Register(grpcServer, scannerService)
 
@@ -30,6 +57,12 @@ func New(
 		grpcServer: grpcServer,
 		port:       port,
 	}
+}
+
+func InterceptorLogger(l *slog.Logger) logging.Logger {
+	return logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
+		l.Log(ctx, slog.Level(lvl), msg, fields...)
+	})
 }
 
 // MustRun runs gRPC server and panics if any error occurs.
@@ -42,14 +75,12 @@ func (a *App) MustRun() {
 func (a *App) Run() error {
 	const op = "grpcapp.Run"
 
-	log := a.log.With(slog.String("op", op))
-
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", a.port))
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Info("starting grpc server", slog.String("addr", l.Addr().String()))
+	a.log.Info("starting grpc server", slog.String("addr", l.Addr().String()))
 
 	if err := a.grpcServer.Serve(l); err != nil {
 		return fmt.Errorf("%s: %w", op, err)

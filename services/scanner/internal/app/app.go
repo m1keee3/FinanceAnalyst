@@ -20,10 +20,14 @@ type App struct {
 
 func New(
 	log *slog.Logger,
+	cacheAddr string,
+	cachePassword string,
+	cacheDB int,
 	grpcPort int,
+	requestTimeout time.Duration,
 ) *App {
 
-	cache := redis.NewCache()
+	cache := redis.NewCache(cacheAddr, cachePassword, cacheDB)
 
 	fetcher := moex.NewFetcher()
 	scannerService := scanner.NewService(
@@ -35,7 +39,7 @@ func New(
 		_default.NewTTLResolver(time.Minute*5, time.Hour*3),
 	)
 
-	grpcApp := grpcapp.New(log, scannerService, grpcPort)
+	grpcApp := grpcapp.New(log, scannerService, grpcPort, requestTimeout)
 
 	return &App{
 		GRPCServer: grpcApp,

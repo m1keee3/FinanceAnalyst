@@ -21,11 +21,9 @@ func main() {
 
 	log := setupLogger(cfg.Env)
 
-	application := app.New(log, cfg.Grpc.Port)
+	application := app.New(log, cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.Db, cfg.Grpc.Port, cfg.Grpc.RequestTimeout)
 
 	go application.GRPCServer.MustRun()
-
-	// TODO db application
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
