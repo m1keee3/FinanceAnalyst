@@ -8,7 +8,7 @@ type ScanOptions struct {
 }
 
 func (o *ScanOptions) WithDefaults() ScanOptions {
-	out := ScanOptions{TailLen: 0, BodyTolerance: 0.1, ShadowTolerance: 0.1}
+	out := ScanOptions{TailLen: 0, BodyTolerance: 0.15, ShadowTolerance: 0.15}
 	if o == nil {
 		return out
 	}

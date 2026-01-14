@@ -13,7 +13,7 @@ func (o *ScanOptions) WithDefaults() ScanOptions {
 	out := ScanOptions{
 		MinScale:  0.75,
 		MaxScale:  1.5,
-		Tolerance: 0.1,
+		Tolerance: 0.15,
 	}
 	if o == nil {
 		return out
