@@ -1,503 +1,208 @@
 package chart
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
-	chartmodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart/models"
+	chartmodels "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/chart"
 )
 
-// MockFetcher для тестирования
-type MockFetcher struct {
+//
+// ===== Mock Fetcher =====
+//
+
+type mockFetcher struct {
 	data map[string][]models.Candle
+	err  error
 }
 
-func NewMockFetcher() *MockFetcher {
-	return &MockFetcher{
-		data: make(map[string][]models.Candle),
+func (m *mockFetcher) Fetch(ticker string, from, to time.Time) ([]models.Candle, error) {
+	if m.err != nil {
+		return nil, m.err
 	}
-}
-
-func (m *MockFetcher) AddData(ticker string, candles []models.Candle) {
-	m.data[ticker] = candles
-}
-
-func (m *MockFetcher) Fetch(ticker string, from, to time.Time) ([]models.Candle, error) {
 	return m.data[ticker], nil
 }
 
-// createTestCandles создает тестовые свечи с заданным паттерном
-func createTestCandles(count int, basePrice float64, pattern string) []models.Candle {
-	candles := make([]models.Candle, count)
-	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+//
+// ===== Helpers =====
+//
 
-	for i := 0; i < count; i++ {
-		price := basePrice
-		switch pattern {
-		case "up":
-			price = basePrice + float64(i)*0.1
-		case "down":
-			price = basePrice - float64(i)*0.1
-		case "volatile":
-			if i%2 == 0 {
-				price = basePrice + float64(i)*0.2
-			} else {
-				price = basePrice - float64(i)*0.1
+func candle(ts int64, close float64) models.Candle {
+	return models.Candle{
+		Date:  time.Unix(ts, 0),
+		Open:  close,
+		High:  close,
+		Low:   close,
+		Close: close,
+	}
+}
+
+func linearCandles(start int64, n int, slope float64) []models.Candle {
+	res := make([]models.Candle, n)
+	for i := 0; i < n; i++ {
+		noise := float64(i%2) * 0.01
+		price := float64(i)*slope + noise
+		res[i] = candle(start+int64(i*60), price)
+	}
+	return res
+}
+
+//
+// ===== Tests =====
+//
+
+func TestScanner_Scan_Errors(t *testing.T) {
+	logger := slog.Default()
+
+	tests := []struct {
+		name    string
+		scanner *Scanner
+		query   *chartmodels.ScanQuery
+	}{
+		{
+			name:    "nil scanner",
+			scanner: nil,
+			query:   &chartmodels.ScanQuery{},
+		},
+		{
+			name:    "nil query",
+			scanner: NewScanner(logger, &mockFetcher{}),
+			query:   nil,
+		},
+		{
+			name: "empty tickers",
+			scanner: NewScanner(logger, &mockFetcher{
+				data: map[string][]models.Candle{
+					"A": linearCandles(0, 10, 1),
+				},
+			}),
+			query: &chartmodels.ScanQuery{
+				Segment: models.ChartSegment{Ticker: "A"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.scanner.Scan(tt.query)
+			if err == nil {
+				t.Fatalf("expected error")
 			}
-		case "flat":
-			price = basePrice
-		}
-
-		candles[i] = models.Candle{
-			Date:  baseTime.Add(time.Duration(i*24) * time.Hour),
-			Open:  price,
-			High:  price + 0.5,
-			Low:   price - 0.5,
-			Close: price,
-		}
-	}
-	return candles
-}
-
-// Граничные случаи
-
-func TestScan_NilScanner(t *testing.T) {
-	var scanner *Scanner
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Candles: createTestCandles(10, 100.0, "up"),
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Errorf("Scan() error = %v, want nil", err)
-	}
-	if results != nil {
-		t.Errorf("Scan() returned %v, want nil", results)
+		})
 	}
 }
 
-func TestScan_NilFetcher(t *testing.T) {
-	scanner := &Scanner{fetcher: nil}
+func TestScanner_Scan_ToleranceReject(t *testing.T) {
+	logger := slog.Default()
+
+	seed := linearCandles(0, 10, 1)
+	search := linearCandles(0, 20, -1)
+
+	fetcher := &mockFetcher{
+		data: map[string][]models.Candle{
+			"SEED": seed,
+			"TSLA": search,
+		},
+	}
+
+	scanner := NewScanner(logger, fetcher)
 
 	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
-			Candles: createTestCandles(10, 100.0, "up"),
+			Ticker: "SEED",
+			From:   seed[0].Date,
+			To:     seed[len(seed)-1].Date,
 		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Errorf("Scan() error = %v, want nil", err)
-	}
-	if results != nil {
-		t.Errorf("Scan() returned %v, want nil", results)
-	}
-}
-
-func TestScan_EmptySegment(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: []models.Candle{},
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	if len(results) != 0 {
-		t.Errorf("Scan() with empty segment returned %v results, expected 0", len(results))
-	}
-}
-
-func TestScan_EmptyTickers(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: createTestCandles(10, 100.0, "up"),
-		},
-		Tickers:    []string{},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	if len(results) != 0 {
-		t.Errorf("Scan() with empty tickers returned %v results, expected 0", len(results))
-	}
-}
-
-func TestScan_ShortSegment(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	mockFetcher.AddData("SBER", createTestCandles(100, 100.0, "up"))
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: createTestCandles(2, 100.0, "up"),
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	t.Logf("Scan() with short segment returned %v results", len(results))
-}
-
-// Основная функциональность
-
-func TestScan_ExactMatch(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	pattern := createTestCandles(20, 100.0, "up")
-	mockFetcher.AddData("SBER", pattern)
-	mockFetcher.AddData("GAZP", pattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "SBER",
-			Candles: pattern[:10],
-		},
-		Tickers:    []string{"SBER", "GAZP"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 		Options: chartmodels.ScanOptions{
-			MinScale:  0.9,
-			MaxScale:  1.1,
-			Tolerance: 0.5,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	if len(results) == 0 {
-		t.Error("Scan() returned no results, expected at least one match")
-	}
-}
-
-func TestScan_NoMatches(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	upPattern := createTestCandles(20, 100.0, "up")
-	downPattern := createTestCandles(20, 100.0, "down")
-
-	mockFetcher.AddData("SBER", downPattern)
-	mockFetcher.AddData("GAZP", downPattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: upPattern[:10],
-		},
-		Tickers:    []string{"SBER", "GAZP"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.9,
-			MaxScale:  1.1,
-			Tolerance: 0.01,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	if len(results) > 0 {
-		t.Errorf("Scan() returned %v results with strict tolerance, expected 0", len(results))
-	}
-}
-
-func TestScan_MultipleTickers(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	pattern := createTestCandles(30, 100.0, "volatile")
-	mockFetcher.AddData("SBER", pattern)
-	mockFetcher.AddData("GAZP", pattern)
-	mockFetcher.AddData("LKOH", pattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: pattern[:15],
-		},
-		Tickers:    []string{"SBER", "GAZP", "LKOH"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.9,
-			MaxScale:  1.1,
-			Tolerance: 0.3,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	t.Logf("Scan() with 3 tickers returned %v results", len(results))
-}
-
-func TestScan_LongCandles(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	longPattern := createTestCandles(200, 100.0, "up")
-	mockFetcher.AddData("SBER", longPattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: longPattern[:50],
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.9,
-			MaxScale:  1.1,
-			Tolerance: 0.3,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	t.Logf("Scan() with long candles returned %v results", len(results))
-}
-
-// Тестирование параметров сканирования
-
-func TestScan_NarrowScale(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	pattern := createTestCandles(50, 100.0, "up")
-	mockFetcher.AddData("SBER", pattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: pattern[:20],
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.95,
-			MaxScale:  1.05,
-			Tolerance: 0.5,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Errorf("Scan() error = %v", err)
-	}
-
-	t.Logf("narrow range: found %d matches", len(results))
-}
-
-func TestScan_WideScale(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	pattern := createTestCandles(50, 100.0, "up")
-	mockFetcher.AddData("SBER", pattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: pattern[:20],
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.5,
-			MaxScale:  2.0,
-			Tolerance: 0.5,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Errorf("Scan() error = %v", err)
-	}
-
-	t.Logf("wide range: found %d matches", len(results))
-}
-
-func TestScan_ExactScale(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	pattern := createTestCandles(50, 100.0, "up")
-	mockFetcher.AddData("SBER", pattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: pattern[:20],
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  1.0,
-			MaxScale:  1.0,
-			Tolerance: 0.5,
-		},
-	}
-
-	results, err := scanner.Scan(query)
-
-	if err != nil {
-		t.Errorf("Scan() error = %v", err)
-	}
-
-	t.Logf("exact match: found %d matches", len(results))
-}
-
-func TestScan_StrictTolerance(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
-
-	pattern := createTestCandles(30, 100.0, "up")
-	mockFetcher.AddData("SBER", pattern)
-
-	query := &chartmodels.ScanQuery{
-		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: pattern[:15],
-		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.9,
-			MaxScale:  1.1,
 			Tolerance: 0.05,
 		},
+		Tickers:    []string{"TSLA"},
+		SearchFrom: search[0].Date,
+		SearchTo:   search[len(search)-1].Date,
 	}
 
-	results, err := scanner.Scan(query)
-
+	matches, err := scanner.Scan(query)
 	if err != nil {
-		t.Errorf("Scan() error = %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	t.Logf("strict tolerance: found %d matches", len(results))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
 }
 
-func TestScan_LooseTolerance(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
+func TestScanner_Scan_SeedSegmentRemoved(t *testing.T) {
+	logger := slog.Default()
 
-	upPattern := createTestCandles(30, 100.0, "up")
-	downPattern := createTestCandles(30, 100.0, "down")
-	mockFetcher.AddData("SBER", downPattern)
+	seed := linearCandles(0, 10, 1)
+
+	fetcher := &mockFetcher{
+		data: map[string][]models.Candle{
+			"AAPL": seed,
+		},
+	}
+
+	scanner := NewScanner(logger, fetcher)
 
 	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: upPattern[:15],
+			Ticker: "AAPL",
+			From:   seed[0].Date,
+			To:     seed[len(seed)-1].Date,
 		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Options: chartmodels.ScanOptions{
-			MinScale:  0.9,
-			MaxScale:  1.1,
-			Tolerance: 0.9,
-		},
+		Tickers:    []string{"AAPL"},
+		SearchFrom: seed[0].Date,
+		SearchTo:   seed[len(seed)-1].Date,
 	}
 
-	results, err := scanner.Scan(query)
-
+	matches, err := scanner.Scan(query)
 	if err != nil {
-		t.Errorf("Scan() error = %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	t.Logf("loose tolerance: found %d matches", len(results))
+	if len(matches) != 0 {
+		t.Fatalf("expected seed segment to be removed")
+	}
 }
 
-func TestScan_DefaultOptions(t *testing.T) {
-	mockFetcher := NewMockFetcher()
-	scanner := NewScanner(mockFetcher)
+func TestScanner_Scan_OverlapResolvedByDistance(t *testing.T) {
+	logger := slog.Default()
 
-	pattern := createTestCandles(30, 100.0, "volatile")
-	mockFetcher.AddData("SBER", pattern)
+	seed := linearCandles(0, 10, 1)
+
+	search := append(
+		linearCandles(0, 10, 1),
+		linearCandles(600, 10, 1.1)...,
+	)
+
+	fetcher := &mockFetcher{
+		data: map[string][]models.Candle{
+			"SEED": seed,
+			"NVDA": search,
+		},
+	}
+
+	scanner := NewScanner(logger, fetcher)
 
 	query := &chartmodels.ScanQuery{
 		Segment: models.ChartSegment{
-			Ticker:  "TEST",
-			Candles: pattern[:15],
+			Ticker: "SEED",
+			From:   seed[0].Date,
+			To:     seed[len(seed)-1].Date,
 		},
-		Tickers:    []string{"SBER"},
-		SearchFrom: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		SearchTo:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		// Options не установлены - должны примениться дефолтные значения
+		Tickers:    []string{"NVDA"},
+		SearchFrom: search[0].Date,
+		SearchTo:   search[len(search)-1].Date,
 	}
 
-	results, err := scanner.Scan(query)
-
+	matches, err := scanner.Scan(query)
 	if err != nil {
-		t.Errorf("Scan() error = %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	t.Logf("default options: found %d matches", len(results))
+	if len(matches) > 1 {
+		t.Fatalf("expected overlap resolution, got %d matches", len(matches))
+	}
 }
