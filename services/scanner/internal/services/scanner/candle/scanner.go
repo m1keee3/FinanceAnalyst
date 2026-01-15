@@ -86,7 +86,7 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 		for ticker := range tickerCh {
 			candles, err := s.fetcher.Fetch(ticker, searchFrom, searchTo)
 			if err != nil {
-				s.logger.Warn("error in worker, failed to fetch candles: ", err)
+				s.logger.Warn(fmt.Sprintf("error in worker, failed to fetch candles: %v", err))
 			}
 			for i := 0; i+segmentLen <= len(candles); i++ {
 				window := candles[i : i+segmentLen]

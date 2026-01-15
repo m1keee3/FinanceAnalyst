@@ -74,6 +74,9 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 	}
 
 	seedVec := getPricesVec(seedCandles, seedLen*2)
+	if len(seedVec) == 0 {
+		return nil, errors.New("seed vector is empty after normalization")
+	}
 
 	resampledLength := len(seedVec)
 
@@ -91,7 +94,7 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 		for ticker := range tickerCh {
 			candles, err := s.fetcher.Fetch(ticker, searchFrom, searchTo)
 			if err != nil {
-				s.logger.Warn("error in worker, failed to fetch candles: ", err)
+				s.logger.Warn(fmt.Sprintf("error in worker, failed to fetch candles: %v", err))
 			}
 
 			if len(candles) < minLen {
