@@ -15,8 +15,11 @@
 graph TB
     %% Frontend section
     subgraph "Frontend Layer"
+        NT[Notifiers]
         FE[Web Frontend]
-        TG[Telegram Bot]
+
+        NT -.- FE
+        linkStyle 0 stroke-width:0px,opacity:0
     end
 
     %% API Gateway
@@ -26,19 +29,18 @@ graph TB
     subgraph "Backend Microservices"
         SC[Scanner Service]
         WT[Watcher Service]
-        NT[Notifier Service]
         AI[AITool Service]
         US[Users Service]
     end
     
     %% Data Layer
-    DB1[(Scanner DB)]
+    DB1[(Scanner Cache)]
     DB2[(Users DB)]
     REDIS[(Redis Cache)]
+    KAFKA[(Kafka)]
     
     %% Connections
     FE -->|REST| GW
-    TG -->|Telegram API/Webhook| NT
     
     GW -->|gRPC| SC
     GW -->|gRPC| AI
@@ -47,12 +49,11 @@ graph TB
     
     WT -->|gRPC| SC
     WT -->|gRPC| AI
-    WT -->|Kafka| NT
     
-    NT -->|gRPC| US
-
     SC --> DB1
     US --> DB2
+    WT --> KAFKA
+    KAFKA --> NT
 
     style GW fill:#e8f5e8
     style SC fill:#e8f5e8
@@ -95,49 +96,13 @@ graph TB
 
  - Определение значительных совпадений с историческими данными
 
- - Инициирование уведомлений при обнаружении паттернов
+ - Публикация уведомлений в kafka
 
 Интерфейсы:
 
  - **gRPC**: Коммуникация с Scanner и AITool
 
  - **Kafka**: Асинхронная отправка уведомлений
-
-### Notifier Service (Go)
-Назначение: Доставка уведомлений пользователям
-
-Функциональность:
-
- - Обработка сообщений из Kafka
-
- - Формирование персонализированных уведомлений
-
- - Интеграция с Telegram API через Webhook
-
-Интерфейсы:
-
- - **Kafka**: Получение уведомлений от Watcher
-
- - **Telegram API**: Отправка сообщений пользователям
-
- - **gRPC**: Запросы к Users Service
-
-### AITool Service (Python)
-Назначение: ML-анализ графиков и прогнозирование
-
-Функциональность:
-
- - Анализ графических паттернов с помощью ML-моделей
-
- - Генерация прогнозов на основе исторических данных
-
- - Обучение и обновление моделей
-
-Предоставление AI-инсайтов
-
-Интерфейсы:
-
- - **gRPC**: Основной API для других сервисов
 
 ### Users Service (Go)
 Назначение: Управление пользователями и их предпочтениями
@@ -165,11 +130,24 @@ graph TB
 
  - Маршрутизация запросов к соответствующим сервисам
 
- - Агрегация данных из нескольких источников
-
-**TODO**
-
  - Rate limiting и аутентификация
+
+### AITool Service (Python)
+Назначение: ML-анализ графиков и прогнозирование
+
+Функциональность:
+
+ - Анализ графических паттернов с помощью ML-моделей
+
+ - Генерация прогнозов на основе исторических данных
+
+ - Обучение и обновление моделей
+
+Предоставление AI-инсайтов
+
+Интерфейсы:
+
+ - **gRPC**: Основной API для других сервисов
 
 ---
 
