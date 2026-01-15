@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package scanner.v1;
+
+option go_package = "github.com/m1keee3/FinanceAnalyst/services/scanner/proto-gen/v1;scannerv1";
+
+import "google/protobuf/timestamp.proto";
+
+service Scanner {
+  rpc FindCandleMatches(CandleScanRequest) returns (CandleMatchesResponse);
+
+  rpc FindChartMatches(ChartScanRequest) returns (ChartMatchesResponse);
+
+  rpc ComputeCandleStats(CandleStatsRequest) returns (CandleStatsResponse);
+
+  rpc ComputeChartStats(ChartStatsRequest) returns (ChartStatsResponse);
+}
+
+message ChartSegment {
+  string ticker = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+}
+
+message ScanStats {
+  int32 total_matches = 1;
+  double price_change = 2;
+  double probability = 3;
+}
+
+message CandleScanOptions {
+  int32 tail_len = 1;
+  double body_tolerance = 2;
+  double shadow_tolerance = 3;
+}
+
+message ChartScanOptions {
+  double min_scale = 1;
+  double max_scale = 2;
+  double tolerance = 3;
+}
+
+message CandleScanRequest {
+  ChartSegment segment = 1;
+  CandleScanOptions options = 2;
+  google.protobuf.Timestamp search_from = 3;
+  google.protobuf.Timestamp search_to = 4;
+  repeated string tickers = 5;
+}
+
+message ChartScanRequest {
+  ChartSegment segment = 1;
+  ChartScanOptions options = 2;
+  google.protobuf.Timestamp search_from = 3;
+  google.protobuf.Timestamp search_to = 4;
+  repeated string tickers = 5;
+}
+
+message CandleMatchesResponse {
+  repeated ChartSegment matches = 1;
+}
+
+message ChartMatchesResponse {
+  repeated ChartSegment matches = 1;
+}
+
+message CandleStatsRequest {
+  CandleScanRequest scan = 1;
+  int32 days_to_watch = 2;
+}
+
+message ChartStatsRequest {
+  ChartScanRequest scan = 1;
+  int32 days_to_watch = 2;
+}
+
+message CandleStatsResponse {
+  ScanStats stats = 1;
+}
+
+message ChartStatsResponse {
+  ScanStats stats = 1;
+}
