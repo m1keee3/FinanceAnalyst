@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/clients/scanner/mapper"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/candle"
@@ -10,6 +11,7 @@ import (
 	scannerv1 "github.com/m1keee3/FinanceAnalyst/services/watcher/proto-gen/scanner/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"log/slog"
 	"time"
 )
 
@@ -19,9 +21,20 @@ type Client struct {
 	timeout time.Duration
 }
 
-func New(addr string, timeout time.Duration) (*Client, error) {
+func New(log *slog.Logger, addr string, timeout time.Duration) (*Client, error) {
+
+	loggingOpts := []logging.Option{
+		logging.WithLogOnEvents(
+			logging.PayloadReceived,
+			logging.PayloadSent,
+		),
+	}
+
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(
+			logging.UnaryClientInterceptor(InterceptorLogger(log), loggingOpts...),
+		),
 	}
 
 	conn, err := grpc.NewClient(addr, opts...)
@@ -34,6 +47,12 @@ func New(addr string, timeout time.Duration) (*Client, error) {
 		conn:    conn,
 		timeout: timeout,
 	}, nil
+}
+
+func InterceptorLogger(l *slog.Logger) logging.Logger {
+	return logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
+		l.Log(ctx, slog.Level(lvl), msg, fields...)
+	})
 }
 
 func (c *Client) ComputeCandleStats(ctx context.Context, query *candle.ScanQuery) (*models.SegmentStats, error) {
