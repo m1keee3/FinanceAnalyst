@@ -145,7 +145,7 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 				log.Error("failed to compute candle stats", sl.Err(err))
 			}
 
-			if stats.TotalMatches >= s.cfg.MinMatches {
+			if stats.TotalMatches >= s.cfg.CandleOptions.MinMatches {
 				res = append(res, *stats)
 			}
 		}
@@ -199,7 +199,7 @@ func (s *Service) runChartStatsForTicker(ctx context.Context, ticker string) {
 			log.Error("failed to compute chart stats", sl.Err(err))
 		}
 
-		if stats.TotalMatches >= s.cfg.MinMatches {
+		if stats.TotalMatches >= s.cfg.ChartOptions.MinMatches {
 			res = append(res, *stats)
 		}
 	}

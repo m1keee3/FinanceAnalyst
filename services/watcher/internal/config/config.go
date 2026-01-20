@@ -22,11 +22,10 @@ type AppConfig struct {
 	SearchFrom    time.Time         `yaml:"search_from"`
 	SearchTo      time.Time         `yaml:"search_to"`
 	Tickers       []string          `yaml:"tickers"`
-	CandleMinLen  int               `yaml:"candle_min_len"`
-	CandleMaxLen  int               `yaml:"candle_max_len"`
-	ChartMinLen   int               `yaml:"chart_min_len"`
-	ChartMaxLen   int               `yaml:"chart_max_len"`
-	MinMatches    int               `yaml:"min_matches"`
+	CandleMinLen  int               `yaml:"candle_min_len" env-default:"3"`
+	CandleMaxLen  int               `yaml:"candle_max_len" env-default:"5"`
+	ChartMinLen   int               `yaml:"chart_min_len" env-default:"15"`
+	ChartMaxLen   int               `yaml:"chart_max_len" env-default:"30"`
 }
 
 type ScanCandleOptions struct {
@@ -34,14 +33,16 @@ type ScanCandleOptions struct {
 	MaxTailLen      int     `yaml:"max_tail_len"`
 	ShadowTolerance float64 `yaml:"shadow_tolerance"`
 	BodyTolerance   float64 `yaml:"body_tolerance"`
-	DaysToWatch     int     `yaml:"days_to_watch"`
+	DaysToWatch     int     `yaml:"days_to_watch" env-default:"3"`
+	MinMatches      int     `yaml:"min_matches" env-default:"10"`
 }
 
 type ScanChartOptions struct {
 	MinScale    float64 `yaml:"min_scale"`
 	MaxScale    float64 `yaml:"max_scale"`
 	Tolerance   float64 `yaml:"tolerance"`
-	DaysToWatch int     `yaml:"days_to_watch"`
+	DaysToWatch int     `yaml:"days_to_watch" env-default:"5"`
+	MinMatches  int     `yaml:"min_matches" env-default:"10"`
 }
 
 type GrpcConfig struct {
