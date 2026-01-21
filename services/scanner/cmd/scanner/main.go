@@ -23,18 +23,16 @@ func main() {
 
 	application := app.New(log, cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.Db, cfg.Grpc.Port, cfg.Grpc.RequestTimeout)
 
-	go application.GRPCServer.MustRun()
+	go application.Run()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 
 	sign := <-stop
 
-	log.Info("stopping server:", slog.Any("signal", sign.String()))
+	log.Info("stopping app:", slog.Any("signal", sign.String()))
 
-	application.GRPCServer.Stop()
-
-	log.Info("server stopped")
+	application.Stop()
 }
 
 func setupLogger(env string) *slog.Logger {

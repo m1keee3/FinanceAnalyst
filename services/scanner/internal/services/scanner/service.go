@@ -63,7 +63,7 @@ type ScanResult struct {
 }
 
 func (s *Service) FindCandleMatches(ctx context.Context, query *candlemodels.ScanQuery) ([]models.ChartSegment, error) {
-	const op = "ScannerService.FindCandleMatches"
+	const op = "scanner.Service.FindCandleMatches"
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("find candle matches request")
@@ -111,7 +111,7 @@ func (s *Service) FindCandleMatches(ctx context.Context, query *candlemodels.Sca
 }
 
 func (s *Service) FindChartMatches(ctx context.Context, query *chartmodels.ScanQuery) ([]models.ChartSegment, error) {
-	const op = "ScannerService.FindChartMatches"
+	const op = "scanner.Service.FindChartMatches"
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("find chart matches request")
@@ -159,7 +159,7 @@ func (s *Service) FindChartMatches(ctx context.Context, query *chartmodels.ScanQ
 }
 
 func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.ScanQuery, daysToWatch int) (*models.ScanStats, error) {
-	const op = "ScannerService.ComputeCandleStats"
+	const op = "scanner.Service.ComputeCandleStats"
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("compute candle stats request")
@@ -218,7 +218,7 @@ func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.Sc
 }
 
 func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.ScanQuery, daysToWatch int) (*models.ScanStats, error) {
-	const op = "ScannerService.ComputeChartStats"
+	const op = "scanner.Service.ComputeChartStats"
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("compute chart stats request")

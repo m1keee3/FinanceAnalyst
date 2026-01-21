@@ -26,10 +26,10 @@ func NewCache(addr string, password string, db int) *Cache {
 	}
 }
 
-func (r Cache) GetScan(ctx context.Context, hash string) ([]models.ChartSegment, error) {
-	const op = "cache.redis.GetScan"
+func (c *Cache) GetScan(ctx context.Context, hash string) ([]models.ChartSegment, error) {
+	const op = "cache.Redis.GetScan"
 
-	data, err := r.client.Get(ctx, fmt.Sprintf("scan:%s", hash)).Bytes()
+	data, err := c.client.Get(ctx, fmt.Sprintf("scan:%s", hash)).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, fmt.Errorf("%s: %w", op, cache.ErrNotFound)
@@ -44,16 +44,27 @@ func (r Cache) GetScan(ctx context.Context, hash string) ([]models.ChartSegment,
 	return segments, nil
 }
 
-func (r Cache) SetScan(ctx context.Context, hash string, segments []models.ChartSegment, ttl time.Duration) error {
-	const op = "cache.redis.SetScan"
+func (c *Cache) SetScan(ctx context.Context, hash string, segments []models.ChartSegment, ttl time.Duration) error {
+	const op = "cache.Redis.SetScan"
 
 	data, err := json.Marshal(segments)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	if err := r.client.Set(ctx, fmt.Sprintf("scan:%s", hash), data, ttl).Err(); err != nil {
+	if err := c.client.Set(ctx, fmt.Sprintf("scan:%s", hash), data, ttl).Err(); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	return nil
+}
+
+func (c *Cache) Close() error {
+	const op = "cache.Redis.Close"
+
+	err := c.client.Close()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
 	return nil
 }

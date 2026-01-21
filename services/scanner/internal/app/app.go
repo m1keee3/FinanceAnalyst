@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/m1keee3/FinanceAnalyst/pkg/logger/sl"
 	"log/slog"
 	"time"
 
@@ -15,7 +16,9 @@ import (
 )
 
 type App struct {
+	log        slog.Logger
 	GRPCServer *grpcapp.App
+	Cache      *redis.Cache
 }
 
 func New(
@@ -42,6 +45,29 @@ func New(
 	grpcApp := grpcapp.New(log, scannerService, grpcPort, requestTimeout)
 
 	return &App{
+		log:        *log,
 		GRPCServer: grpcApp,
+		Cache:      cache,
 	}
+}
+
+func (a *App) Run() {
+	const op = "app.Run"
+
+	a.log.With(slog.String("op", op)).Info("starting app")
+	a.GRPCServer.MustRun()
+}
+
+func (a *App) Stop() {
+	const op = "app.Stop"
+
+	log := a.log.With(slog.String("op", op))
+
+	a.GRPCServer.Stop()
+	err := a.Cache.Close()
+	if err != nil {
+		log.Warn("failed to close cache", sl.Err(err))
+	}
+
+	log.Info("app stopped")
 }
