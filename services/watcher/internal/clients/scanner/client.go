@@ -67,6 +67,7 @@ func (c *Client) ComputeCandleStats(ctx context.Context, query *candle.ScanQuery
 
 	res := mapper.FromCandleStatsResponse(stats)
 	res.Segment = query.Segment
+	res.PatternType = models.PatternTypeCandle
 	return res, nil
 }
 
@@ -83,6 +84,7 @@ func (c *Client) ComputeChartStats(ctx context.Context, query *chart.ScanQuery) 
 
 	res := mapper.FromChartStatsResponse(stats)
 	res.Segment = query.Segment
+	res.PatternType = models.PatternTypeChart
 	return res, nil
 }
 
