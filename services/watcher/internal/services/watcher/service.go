@@ -5,28 +5,23 @@ import (
 	"errors"
 	"github.com/m1keee3/FinanceAnalyst/pkg/logger/sl"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
-	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/cache"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/config"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/candle"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/chart"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/storage"
 	"log/slog"
 	"sort"
 	"sync"
 	"time"
 )
 
-const (
-	defaultTTL = 24 * time.Hour
-)
-
 type Publisher interface {
 	PublishStats(segStats *models.SegmentStats) error
 }
 
-type Cache interface {
-	GetStats(ctx context.Context) ([]models.SegmentStats, error)
-	SetSegmentStats(ctx context.Context, segStats models.SegmentStats, ttl time.Duration) error
-	Clear(ctx context.Context) error
+type Storage interface {
+	GetDailyStats(ctx context.Context) ([]models.SegmentStats, error)
+	SaveSegmentStats(ctx context.Context, segStats models.SegmentStats) error
 }
 
 type Scanner interface {
@@ -38,7 +33,7 @@ type Service struct {
 	log       *slog.Logger
 	cfg       *config.AppConfig
 	publisher Publisher
-	cache     Cache
+	cache     Storage
 	scanner   Scanner
 }
 
@@ -46,7 +41,7 @@ func New(
 	log *slog.Logger,
 	cfg *config.AppConfig,
 	publisher Publisher,
-	cache Cache,
+	cache Storage,
 	scanner Scanner,
 ) *Service {
 	return &Service{
@@ -64,18 +59,18 @@ func (s *Service) GetStats(ctx context.Context) []models.SegmentStats {
 	log := s.log.With(slog.String("op", op))
 	log.Info("get stats request")
 
-	stats, err := s.cache.GetStats(ctx)
+	stats, err := s.cache.GetDailyStats(ctx)
 	if err != nil {
-		if errors.Is(err, cache.ErrNotFound) {
-			log.Warn("stats not found in cache")
+		if errors.Is(err, storage.ErrNotFound) {
+			log.Warn("stats not found in storage")
 			return nil
 		}
-		s.log.Error("failed to get stats from cache", sl.Err(err))
+		s.log.Error("failed to get stats from storage", sl.Err(err))
 		return nil
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
-		return stats[i].TotalMatches > stats[j].TotalMatches
+		return stats[i].Probability > stats[j].Probability
 	})
 
 	return stats
@@ -86,10 +81,6 @@ func (s *Service) Run(ctx context.Context) {
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("watcher service run started")
-
-	if err := s.cache.Clear(ctx); err != nil {
-		log.Error("failed to clear cache", sl.Err(err))
-	}
 
 	done := make(chan struct{})
 	var wg sync.WaitGroup
@@ -128,10 +119,9 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 	log.Info("running candle stats for ticker")
 
 	var statsToHandle *models.SegmentStats
+	var res []models.SegmentStats
 
 	for tailLen := s.cfg.CandleOptions.MinTailLen; tailLen <= s.cfg.CandleOptions.MaxTailLen; tailLen++ {
-
-		var res []models.SegmentStats
 
 		for segLen := s.cfg.CandleMinLen; segLen <= s.cfg.CandleMaxLen; segLen++ {
 
@@ -146,10 +136,11 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 						TailLen:         tailLen,
 						ShadowTolerance: s.cfg.CandleOptions.ShadowTolerance,
 						BodyTolerance:   s.cfg.CandleOptions.BodyTolerance,
+						DaysToWatch:     s.cfg.CandleOptions.DaysToWatch,
 					},
 					SearchFrom: s.cfg.SearchFrom,
 					SearchTo:   s.cfg.SearchTo,
-					Tickers:    []string{ticker},
+					Tickers:    s.cfg.Tickers,
 				})
 			if err != nil {
 				log.Error("failed to compute candle stats", sl.Err(err))
@@ -160,15 +151,13 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 			}
 		}
 
-		// Among stats with TotalMatches >= MinMatches, prefer with the highest TailLen
-		if len(res) > 0 {
-			maxMatches := 0
-			for i := range res {
-				if res[i].TotalMatches >= maxMatches {
-					maxMatches = res[i].TotalMatches
-					statsToHandle = &res[i]
-				}
-			}
+	}
+
+	maxProb := 0.0
+	for i := range res {
+		if res[i].Probability >= maxProb {
+			maxProb = res[i].Probability
+			statsToHandle = &res[i]
 		}
 	}
 
@@ -202,7 +191,7 @@ func (s *Service) runChartStatsForTicker(ctx context.Context, ticker string) {
 				},
 				SearchFrom: s.cfg.SearchFrom,
 				SearchTo:   s.cfg.SearchTo,
-				Tickers:    []string{ticker},
+				Tickers:    s.cfg.Tickers,
 			})
 
 		if err != nil {
@@ -216,10 +205,10 @@ func (s *Service) runChartStatsForTicker(ctx context.Context, ticker string) {
 
 	var statsToHandle *models.SegmentStats
 
-	maxMatches := 0
+	maxProb := 0.0
 	for i := range res {
-		if res[i].TotalMatches >= maxMatches {
-			maxMatches = res[i].TotalMatches
+		if res[i].Probability >= maxProb {
+			maxProb = res[i].Probability
 			statsToHandle = &res[i]
 		}
 	}
@@ -238,7 +227,7 @@ func (s *Service) handleStats(ctx context.Context, stats *models.SegmentStats) {
 		log.Error("failed to publish stats", sl.Err(err))
 	}
 
-	if err := s.cache.SetSegmentStats(ctx, *stats, defaultTTL); err != nil {
-		log.Error("failed to cache stats", sl.Err(err))
+	if err := s.cache.SaveSegmentStats(ctx, *stats); err != nil {
+		log.Error("failed to storage stats", sl.Err(err))
 	}
 }
