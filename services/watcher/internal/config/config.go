@@ -12,6 +12,7 @@ type Config struct {
 	App        AppConfig        `yaml:"app"`
 	Grpc       GrpcConfig       `yaml:"grpc"`
 	GrpcClient GrpcClientConfig `yaml:"grpc_client"`
+	Redis      RedisConfig      `yaml:"redis"`
 	Kafka      KafkaConfig      `yaml:"kafka"`
 	Scheduler  SchedulerConfig  `yaml:"scheduler"`
 }
@@ -53,6 +54,12 @@ type GrpcConfig struct {
 type GrpcClientConfig struct {
 	Address string        `yaml:"address" env-default:"localhost:8080"`
 	Timeout time.Duration `yaml:"timeout" env-default:"10s"`
+}
+
+type RedisConfig struct {
+	Addr     string `yaml:"addr" env:"REDIS_ADDR" env-default:"localhost:6379"`
+	Password string `yaml:"password" env:"REDIS_PASSWORD" env-required:"true"`
+	Db       int    `yaml:"db" env:"REDIS_DB" env-default:"1"`
 }
 
 type KafkaConfig struct {

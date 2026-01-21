@@ -20,8 +20,7 @@ const (
 )
 
 type Publisher interface {
-	PublishCandleStats(segStats *models.SegmentStats) error
-	PublishChartStats(segStats *models.SegmentStats) error
+	PublishStats(segStats *models.SegmentStats) error
 }
 
 type Cache interface {
@@ -174,7 +173,7 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 	}
 
 	if statsToHandle != nil {
-		s.handleCandleStats(ctx, statsToHandle)
+		s.handleStats(ctx, statsToHandle)
 	}
 }
 
@@ -225,33 +224,21 @@ func (s *Service) runChartStatsForTicker(ctx context.Context, ticker string) {
 		}
 	}
 
-	s.handleChartStats(ctx, statsToHandle)
-}
-
-func (s *Service) handleCandleStats(ctx context.Context, stats *models.SegmentStats) {
-	const op = "watcher.Service.handleCandleStats"
-
-	log := s.log.With(slog.String("op", op))
-
-	if err := s.publisher.PublishCandleStats(stats); err != nil {
-		log.Error("failed to publish candle stats", sl.Err(err))
-	}
-
-	if err := s.cache.SetSegmentStats(ctx, *stats, defaultTTL); err != nil {
-		log.Error("failed to cache candle stats", sl.Err(err))
+	if statsToHandle != nil {
+		s.handleStats(ctx, statsToHandle)
 	}
 }
 
-func (s *Service) handleChartStats(ctx context.Context, stats *models.SegmentStats) {
-	const op = "watcher.Service.handleChartStats"
+func (s *Service) handleStats(ctx context.Context, stats *models.SegmentStats) {
+	const op = "watcher.Service.handleStats"
 
 	log := s.log.With(slog.String("op", op))
 
-	if err := s.publisher.PublishChartStats(stats); err != nil {
-		log.Error("failed to publish chart stats", sl.Err(err))
+	if err := s.publisher.PublishStats(stats); err != nil {
+		log.Error("failed to publish stats", sl.Err(err))
 	}
 
 	if err := s.cache.SetSegmentStats(ctx, *stats, defaultTTL); err != nil {
-		log.Error("failed to cache chart stats", sl.Err(err))
+		log.Error("failed to cache stats", sl.Err(err))
 	}
 }
