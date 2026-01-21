@@ -10,8 +10,13 @@ import (
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/candle"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/chart"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
+)
+
+const (
+	defaultTTL = 24 * time.Hour
 )
 
 type Publisher interface {
@@ -21,8 +26,8 @@ type Publisher interface {
 
 type Cache interface {
 	GetStats(ctx context.Context) ([]models.SegmentStats, error)
-	SetSegmentStats(ctx context.Context, segStats models.SegmentStats) error
-	Clear() error
+	SetSegmentStats(ctx context.Context, segStats models.SegmentStats, ttl time.Duration) error
+	Clear(ctx context.Context) error
 }
 
 type Scanner interface {
@@ -59,6 +64,7 @@ func (s *Service) GetStats(ctx context.Context) []models.SegmentStats {
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("get stats request")
+
 	stats, err := s.cache.GetStats(ctx)
 	if err != nil {
 		if errors.Is(err, cache.ErrNotFound) {
@@ -68,6 +74,11 @@ func (s *Service) GetStats(ctx context.Context) []models.SegmentStats {
 		s.log.Error("failed to get stats from cache", sl.Err(err))
 		return nil
 	}
+
+	sort.Slice(stats, func(i, j int) bool {
+		return stats[i].TotalMatches > stats[j].TotalMatches
+	})
+
 	return stats
 }
 
@@ -77,7 +88,7 @@ func (s *Service) Run(ctx context.Context) {
 	log := s.log.With(slog.String("op", op))
 	log.Info("watcher service run started")
 
-	if err := s.cache.Clear(); err != nil {
+	if err := s.cache.Clear(ctx); err != nil {
 		log.Error("failed to clear cache", sl.Err(err))
 	}
 
@@ -226,7 +237,7 @@ func (s *Service) handleCandleStats(ctx context.Context, stats *models.SegmentSt
 		log.Error("failed to publish candle stats", sl.Err(err))
 	}
 
-	if err := s.cache.SetSegmentStats(ctx, *stats); err != nil {
+	if err := s.cache.SetSegmentStats(ctx, *stats, defaultTTL); err != nil {
 		log.Error("failed to cache candle stats", sl.Err(err))
 	}
 }
@@ -240,7 +251,7 @@ func (s *Service) handleChartStats(ctx context.Context, stats *models.SegmentSta
 		log.Error("failed to publish chart stats", sl.Err(err))
 	}
 
-	if err := s.cache.SetSegmentStats(ctx, *stats); err != nil {
+	if err := s.cache.SetSegmentStats(ctx, *stats, defaultTTL); err != nil {
 		log.Error("failed to cache chart stats", sl.Err(err))
 	}
 }
