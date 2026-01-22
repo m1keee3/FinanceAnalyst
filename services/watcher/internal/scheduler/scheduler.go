@@ -44,8 +44,10 @@ func New(
 	}, nil
 }
 
-func (s *Scheduler) Start(ctx context.Context) {
+func (s *Scheduler) Run() {
 	s.cron.Start()
-	<-ctx.Done()
+}
+
+func (s *Scheduler) Stop() {
 	s.cron.Stop()
 }
