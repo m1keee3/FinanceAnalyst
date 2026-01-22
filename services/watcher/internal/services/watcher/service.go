@@ -86,10 +86,13 @@ func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	for _, ticker := range s.cfg.Tickers {
-		wg.Add(1)
+		wg.Add(2)
 		go func(ticker string) {
 			defer wg.Done()
 			s.runCandleStatsForTicker(ctx, ticker)
+		}(ticker)
+		go func(ticker string) {
+			defer wg.Done()
 			s.runChartStatsForTicker(ctx, ticker)
 		}(ticker)
 	}
@@ -225,9 +228,13 @@ func (s *Service) handleStats(ctx context.Context, stats *models.SegmentStats) {
 
 	if err := s.publisher.PublishStats(stats); err != nil {
 		log.Error("failed to publish stats", sl.Err(err))
+	} else {
+		log.Info("published stats", slog.Any("stats", stats))
 	}
 
 	if err := s.cache.SetDailySegmentStats(ctx, *stats); err != nil {
 		log.Error("failed to storage stats", sl.Err(err))
+	} else {
+		log.Info("stored stats", slog.Any("stats", stats))
 	}
 }
