@@ -61,9 +61,7 @@ func (s *Scanner) findMatches(segment models.ChartSegment, tickers []string, sea
 	}
 
 	opts := options.WithDefaults()
-	if opts.TailLen < 0 {
-		opts.TailLen = 0
-	}
+
 	if opts.TailLen > segmentLen {
 		opts.TailLen = segmentLen
 	}

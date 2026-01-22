@@ -2,8 +2,8 @@ package mapper
 
 import (
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/domain/models"
-	candle2 "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/candle"
-	chart2 "github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/chart"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/candle"
+	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/models/chart"
 	scannerv1 "github.com/m1keee3/FinanceAnalyst/services/scanner/proto-gen/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -52,11 +52,11 @@ func ScanStatsToChartStatsResponse(stats *models.ScanStats) *scannerv1.ChartStat
 	}
 }
 
-func CandleScanRequestToScanQuery(req *scannerv1.CandleScanRequest) *candle2.ScanQuery {
+func CandleScanRequestToScanQuery(req *scannerv1.CandleScanRequest) *candle.ScanQuery {
 	segment := fromProtoChartSegment(req.GetSegment())
 	options := fromProtoCandleScanOptions(req.GetOptions())
 
-	return &candle2.ScanQuery{
+	return &candle.ScanQuery{
 		Segment:    segment,
 		Options:    options,
 		SearchFrom: req.GetSearchFrom().AsTime(),
@@ -65,16 +65,30 @@ func CandleScanRequestToScanQuery(req *scannerv1.CandleScanRequest) *candle2.Sca
 	}
 }
 
-func ChartScanRequestToScanQuery(req *scannerv1.ChartScanRequest) *chart2.ScanQuery {
+func ChartScanRequestToScanQuery(req *scannerv1.ChartScanRequest) *chart.ScanQuery {
 	segment := fromProtoChartSegment(req.GetSegment())
 	options := fromProtoChartScanOptions(req.GetOptions())
 
-	return &chart2.ScanQuery{
+	return &chart.ScanQuery{
 		Segment:    segment,
 		Options:    options,
 		SearchFrom: req.GetSearchFrom().AsTime(),
 		SearchTo:   req.GetSearchTo().AsTime(),
 		Tickers:    req.GetTickers(),
+	}
+}
+
+func CandleStatsRequestToStatsQuery(req *scannerv1.CandleStatsRequest) *candle.StatsQuery {
+	return &candle.StatsQuery{
+		ScanQuery:   CandleScanRequestToScanQuery(req.GetScan()),
+		DaysToWatch: int(req.GetDaysToWatch()),
+	}
+}
+
+func ChartStatsRequestToStatsQuery(req *scannerv1.ChartStatsRequest) *chart.StatsQuery {
+	return &chart.StatsQuery{
+		ScanQuery:   ChartScanRequestToScanQuery(req.GetScan()),
+		DaysToWatch: int(req.GetDaysToWatch()),
 	}
 }
 
@@ -96,24 +110,24 @@ func toProtoChartSegment(segment models.ChartSegment) *scannerv1.ChartSegment {
 	}
 }
 
-func fromProtoCandleScanOptions(proto *scannerv1.CandleScanOptions) candle2.ScanOptions {
+func fromProtoCandleScanOptions(proto *scannerv1.CandleScanOptions) candle.ScanOptions {
 	if proto == nil {
-		return candle2.ScanOptions{}
+		return candle.ScanOptions{}
 	}
 
-	return candle2.ScanOptions{
+	return candle.ScanOptions{
 		TailLen:         int(proto.GetTailLen()),
 		BodyTolerance:   proto.GetBodyTolerance(),
 		ShadowTolerance: proto.GetShadowTolerance(),
 	}
 }
 
-func fromProtoChartScanOptions(proto *scannerv1.ChartScanOptions) chart2.ScanOptions {
+func fromProtoChartScanOptions(proto *scannerv1.ChartScanOptions) chart.ScanOptions {
 	if proto == nil {
-		return chart2.ScanOptions{}
+		return chart.ScanOptions{}
 	}
 
-	return chart2.ScanOptions{
+	return chart.ScanOptions{
 		MinScale:  proto.GetMinScale(),
 		MaxScale:  proto.GetMaxScale(),
 		Tolerance: proto.GetTolerance(),

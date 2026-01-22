@@ -18,9 +18,9 @@ type ScannerService interface {
 
 	FindChartMatches(ctx context.Context, query *chart.ScanQuery) ([]models.ChartSegment, error)
 
-	ComputeCandleStats(ctx context.Context, query *candle.ScanQuery, daysToWatch int) (*models.ScanStats, error)
+	ComputeCandleStats(ctx context.Context, query *candle.StatsQuery) (*models.ScanStats, error)
 
-	ComputeChartStats(ctx context.Context, query *chart.ScanQuery, daysToWatch int) (*models.ScanStats, error)
+	ComputeChartStats(ctx context.Context, query *chart.StatsQuery) (*models.ScanStats, error)
 }
 
 type serverAPI struct {
@@ -105,14 +105,9 @@ func (s *serverAPI) ComputeCandleStats(ctx context.Context, request *scannerv1.C
 		return nil, status.Error(codes.InvalidArgument, "at least one ticker is required")
 	}
 
-	daysToWatch := int(request.DaysToWatch)
-	if daysToWatch == 0 {
-		daysToWatch = 1
-	}
+	query := mapper.CandleStatsRequestToStatsQuery(request)
 
-	query := mapper.CandleScanRequestToScanQuery(request.Scan)
-
-	scanStats, err := s.scannerService.ComputeCandleStats(ctx, query, daysToWatch)
+	scanStats, err := s.scannerService.ComputeCandleStats(ctx, query)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to compute candle stats")
@@ -138,14 +133,9 @@ func (s *serverAPI) ComputeChartStats(ctx context.Context, request *scannerv1.Ch
 		return nil, status.Error(codes.InvalidArgument, "at least one ticker is required")
 	}
 
-	daysToWatch := int(request.DaysToWatch)
-	if daysToWatch == 0 {
-		daysToWatch = 1
-	}
+	query := mapper.ChartStatsRequestToStatsQuery(request)
 
-	query := mapper.ChartScanRequestToScanQuery(request.Scan)
-
-	scanStats, err := s.scannerService.ComputeChartStats(ctx, query, daysToWatch)
+	scanStats, err := s.scannerService.ComputeChartStats(ctx, query)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to compute chart stats")

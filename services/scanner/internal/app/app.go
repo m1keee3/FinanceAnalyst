@@ -12,13 +12,12 @@ import (
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/stats"
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/lib/fetcher/moex"
-	_default "github.com/m1keee3/FinanceAnalyst/services/scanner/lib/ttl_resolver/default"
 )
 
 type App struct {
-	log        slog.Logger
-	GRPCServer *grpcapp.App
-	Cache      *redis.Cache
+	log        *slog.Logger
+	gRPCServer *grpcapp.App
+	cache      *redis.Cache
 }
 
 func New(
@@ -39,23 +38,22 @@ func New(
 		chart.NewScanner(log, fetcher),
 		stats.NewComputer(fetcher),
 		cache,
-		_default.NewTTLResolver(time.Minute*5, time.Hour*3),
 	)
 
 	grpcApp := grpcapp.New(log, scannerService, grpcPort, requestTimeout)
 
 	return &App{
-		log:        *log,
-		GRPCServer: grpcApp,
-		Cache:      cache,
+		log:        log,
+		gRPCServer: grpcApp,
+		cache:      cache,
 	}
 }
 
 func (a *App) Run() {
 	const op = "app.Run"
 
-	a.log.With(slog.String("op", op)).Info("starting app")
-	a.GRPCServer.MustRun()
+	a.log.Info("starting app", slog.String("op", op))
+	a.gRPCServer.MustRun()
 }
 
 func (a *App) Stop() {
@@ -63,8 +61,8 @@ func (a *App) Stop() {
 
 	log := a.log.With(slog.String("op", op))
 
-	a.GRPCServer.Stop()
-	err := a.Cache.Close()
+	a.gRPCServer.Stop()
+	err := a.cache.Close()
 	if err != nil {
 		log.Warn("failed to close cache", sl.Err(err))
 	}

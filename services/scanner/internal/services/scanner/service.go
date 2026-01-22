@@ -16,14 +16,16 @@ import (
 	"github.com/m1keee3/FinanceAnalyst/services/scanner/internal/services/scanner/chart"
 )
 
+const (
+	dayDuration      = 24 * time.Hour
+	halfHourDuration = 30 * time.Minute
+)
+
 type Cache interface {
 	GetScan(ctx context.Context, hash string) ([]models.ChartSegment, error)
 	SetScan(ctx context.Context, hash string, segments []models.ChartSegment, ttl time.Duration) error
-}
-
-type TTLResolver interface {
-	CandleTTL(searchTo time.Time) time.Duration
-	ChartTTL(searchTo time.Time) time.Duration
+	GetStats(ctx context.Context, hash string) (*models.ScanStats, error)
+	SetStats(ctx context.Context, hash string, stats *models.ScanStats, ttl time.Duration) error
 }
 
 type StatsComputer interface {
@@ -36,7 +38,6 @@ type Service struct {
 	chartScanner  *chart.Scanner
 	statsComputer StatsComputer
 	cache         Cache
-	ttlResolver   TTLResolver
 }
 
 func NewService(
@@ -45,7 +46,6 @@ func NewService(
 	chartScanner *chart.Scanner,
 	statsComputer StatsComputer,
 	cache Cache,
-	ttlResolver TTLResolver,
 ) *Service {
 	return &Service{
 		log:           log,
@@ -53,7 +53,6 @@ func NewService(
 		chartScanner:  chartScanner,
 		statsComputer: statsComputer,
 		cache:         cache,
-		ttlResolver:   ttlResolver,
 	}
 }
 
@@ -101,8 +100,10 @@ func (s *Service) FindCandleMatches(ctx context.Context, query *candlemodels.Sca
 		}
 
 		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.ttlResolver.CandleTTL(query.SearchTo)); err != nil {
+			if err := s.cache.SetScan(ctx, hash, res.matches, s.candleTTL(query)); err != nil {
 				log.Warn("failed to cache matches", sl.Err(err))
+			} else {
+				log.Info("cached matches")
 			}
 		}()
 
@@ -149,8 +150,10 @@ func (s *Service) FindChartMatches(ctx context.Context, query *chartmodels.ScanQ
 		}
 
 		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.ttlResolver.ChartTTL(query.SearchTo)); err != nil {
+			if err := s.cache.SetScan(ctx, hash, res.matches, s.chartTTL(query)); err != nil {
 				log.Warn("failed to cache matches", sl.Err(err))
+			} else {
+				log.Info("cached matches")
 			}
 		}()
 
@@ -158,26 +161,36 @@ func (s *Service) FindChartMatches(ctx context.Context, query *chartmodels.ScanQ
 	}
 }
 
-func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.ScanQuery, daysToWatch int) (*models.ScanStats, error) {
+func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.StatsQuery) (*models.ScanStats, error) {
 	const op = "scanner.Service.ComputeCandleStats"
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("compute candle stats request")
 
-	hash := query.Hash()
+	cachedStats, err := s.cache.GetStats(ctx, query.Hash())
+	if err != nil {
+		if errors.Is(err, cache.ErrNotFound) {
+			log.Info("no cached stats found")
+		} else {
+			log.Warn("failed to get cached matches", sl.Err(err))
+		}
+	} else if cachedStats != nil {
+		log.Info("found cached stats")
+		return cachedStats, nil
+	}
 
-	cached, err := s.cache.GetScan(ctx, hash)
+	cachedScan, err := s.cache.GetScan(ctx, query.ScanQuery.Hash())
 	if err != nil {
 		if errors.Is(err, cache.ErrNotFound) {
 			log.Info("no cached matches found")
 		} else {
 			log.Warn("failed to get cached matches", sl.Err(err))
 		}
-	} else if cached != nil {
+	} else if cachedScan != nil {
 		log.Info("found cached matches")
-		stats, err := s.statsComputer.ComputeStats(cached, daysToWatch)
+		stats, err := s.statsComputer.ComputeStats(cachedScan, query.DaysToWatch)
 		if err != nil {
-			log.Error("failed to compute candle stats", sl.Err(err))
+			log.Error("failed to compute chart stats", sl.Err(err))
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(err))
 		}
 
@@ -187,7 +200,7 @@ func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.Sc
 	resCh := make(chan ScanResult, 1)
 
 	go func() {
-		matches, err := s.candleScanner.Scan(query)
+		matches, err := s.candleScanner.Scan(query.ScanQuery)
 		resCh <- ScanResult{matches, err}
 	}()
 
@@ -202,22 +215,32 @@ func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.Sc
 		}
 
 		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.ttlResolver.CandleTTL(query.SearchTo)); err != nil {
+			if err := s.cache.SetScan(ctx, query.ScanQuery.Hash(), res.matches, s.candleTTL(query.ScanQuery)); err != nil {
 				log.Warn("failed to cache matches", sl.Err(err))
+			} else {
+				log.Info("cached matches")
 			}
 		}()
 
-		stats, err := s.statsComputer.ComputeStats(res.matches, daysToWatch)
+		stats, err := s.statsComputer.ComputeStats(res.matches, query.DaysToWatch)
 		if err != nil {
 			log.Error("failed to compute candle stats", sl.Err(err))
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(err))
 		}
 
+		go func() {
+			if err := s.cache.SetStats(ctx, query.Hash(), stats, s.candleTTL(query.ScanQuery)); err != nil {
+				log.Warn("failed to cache stats", sl.Err(err))
+			} else {
+				log.Info("cached stats")
+			}
+		}()
+
 		return stats, nil
 	}
 }
 
-func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.ScanQuery, daysToWatch int) (*models.ScanStats, error) {
+func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.StatsQuery) (*models.ScanStats, error) {
 	const op = "scanner.Service.ComputeChartStats"
 
 	log := s.log.With(slog.String("op", op))
@@ -225,16 +248,28 @@ func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.Scan
 
 	hash := query.Hash()
 
-	cached, err := s.cache.GetScan(ctx, hash)
+	cachedStats, err := s.cache.GetStats(ctx, query.Hash())
+	if err != nil {
+		if errors.Is(err, cache.ErrNotFound) {
+			log.Info("no cached stats found")
+		} else {
+			log.Warn("failed to get cached matches", sl.Err(err))
+		}
+	} else if cachedStats != nil {
+		log.Info("found cached stats")
+		return cachedStats, nil
+	}
+
+	cachedScan, err := s.cache.GetScan(ctx, query.ScanQuery.Hash())
 	if err != nil {
 		if errors.Is(err, cache.ErrNotFound) {
 			log.Info("no cached matches found")
 		} else {
 			log.Warn("failed to get cached matches", sl.Err(err))
 		}
-	} else if cached != nil {
+	} else if cachedScan != nil {
 		log.Info("found cached matches")
-		stats, err := s.statsComputer.ComputeStats(cached, daysToWatch)
+		stats, err := s.statsComputer.ComputeStats(cachedScan, query.DaysToWatch)
 		if err != nil {
 			log.Error("failed to compute chart stats", sl.Err(err))
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(err))
@@ -246,7 +281,7 @@ func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.Scan
 	resCh := make(chan ScanResult, 1)
 
 	go func() {
-		matches, err := s.chartScanner.Scan(query)
+		matches, err := s.chartScanner.Scan(query.ScanQuery)
 		resCh <- ScanResult{matches, err}
 	}()
 
@@ -261,17 +296,51 @@ func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.Scan
 		}
 
 		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.ttlResolver.ChartTTL(query.SearchTo)); err != nil {
+			if err := s.cache.SetScan(ctx, hash, res.matches, s.chartTTL(query.ScanQuery)); err != nil {
 				log.Warn("failed to cache matches", sl.Err(err))
+			} else {
+				log.Info("cached matches")
 			}
 		}()
 
-		stats, err := s.statsComputer.ComputeStats(res.matches, daysToWatch)
+		stats, err := s.statsComputer.ComputeStats(res.matches, query.DaysToWatch)
 		if err != nil {
 			log.Error("failed to compute chart stats", sl.Err(err))
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(err))
 		}
 
+		go func() {
+			if err := s.cache.SetStats(ctx, query.Hash(), stats, s.chartTTL(query.ScanQuery)); err != nil {
+				log.Warn("failed to cache stats", sl.Err(err))
+			} else {
+				log.Info("cached stats")
+			}
+		}()
+
 		return stats, nil
 	}
+}
+
+func (s *Service) candleTTL(query *candlemodels.ScanQuery) time.Duration {
+	ttl := dayDuration
+	if sameDay(query.SearchTo, time.Now()) || sameDay(query.Segment.To, time.Now()) {
+		ttl = halfHourDuration
+	}
+
+	return ttl
+}
+
+func (s *Service) chartTTL(query *chartmodels.ScanQuery) time.Duration {
+	ttl := dayDuration
+	if sameDay(query.SearchTo, time.Now()) || sameDay(query.Segment.To, time.Now()) {
+		ttl = halfHourDuration
+	}
+
+	return ttl
+}
+
+func sameDay(t1, t2 time.Time) bool {
+	y1, m1, d1 := t1.Date()
+	y2, m2, d2 := t2.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
 }

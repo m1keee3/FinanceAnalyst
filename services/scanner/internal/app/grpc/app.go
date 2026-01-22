@@ -73,14 +73,14 @@ func (a *App) MustRun() {
 }
 
 func (a *App) Run() error {
-	const op = "grpcapp.Run"
+	const op = "grpc.App.Run"
 
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", a.port))
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	a.log.Info("starting grpc server", slog.String("addr", l.Addr().String()))
+	a.log.Info("starting grpc server", slog.String("op", op), slog.String("addr", l.Addr().String()))
 
 	if err := a.grpcServer.Serve(l); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -90,10 +90,9 @@ func (a *App) Run() error {
 }
 
 func (a *App) Stop() {
-	const op = "grpcapp.Stop"
+	const op = "grpc.App.Stop"
 
-	a.log.With(slog.String("op", op)).
-		Info("stopping grpc server")
+	a.log.Info("stopping grpc server", slog.String("op", op))
 
 	a.grpcServer.GracefulStop()
 }
