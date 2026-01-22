@@ -21,7 +21,7 @@ type Publisher interface {
 
 type Storage interface {
 	GetDailyStats(ctx context.Context) ([]models.SegmentStats, error)
-	SaveSegmentStats(ctx context.Context, segStats models.SegmentStats) error
+	SetDailySegmentStats(ctx context.Context, segStats models.SegmentStats) error
 }
 
 type Scanner interface {
@@ -227,7 +227,7 @@ func (s *Service) handleStats(ctx context.Context, stats *models.SegmentStats) {
 		log.Error("failed to publish stats", sl.Err(err))
 	}
 
-	if err := s.cache.SaveSegmentStats(ctx, *stats); err != nil {
+	if err := s.cache.SetDailySegmentStats(ctx, *stats); err != nil {
 		log.Error("failed to storage stats", sl.Err(err))
 	}
 }

@@ -12,7 +12,7 @@ type Config struct {
 	App        AppConfig        `yaml:"app"`
 	Grpc       GrpcConfig       `yaml:"grpc"`
 	GrpcClient GrpcClientConfig `yaml:"grpc_client"`
-	Redis      RedisConfig      `yaml:"redis"`
+	Db         DbConfig         `yaml:"db"`
 	Kafka      KafkaConfig      `yaml:"kafka"`
 	Scheduler  SchedulerConfig  `yaml:"scheduler"`
 }
@@ -56,19 +56,23 @@ type GrpcClientConfig struct {
 	Timeout time.Duration `yaml:"timeout" env-default:"10s"`
 }
 
-type RedisConfig struct {
-	Addr     string `yaml:"addr" env:"REDIS_ADDR" env-default:"localhost:6379"`
-	Password string `yaml:"password" env:"REDIS_PASSWORD" env-required:"true"`
-	Db       int    `yaml:"db" env:"REDIS_DB" env-default:"1"`
+type DbConfig struct {
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Host     string `yaml:"host" env-default:"localhost"`
+	Port     int    `yaml:"port" env-default:"5432"`
+	DBName   string `yaml:"dbname"`
+	SSLMode  string `yaml:"sslmode" env-default:"disable"`
 }
 
 type KafkaConfig struct {
-	BootstrapServers string `yaml:"bootstrap_servers" env-default:"localhost:9092"`
-	Topic            string `yaml:"topic" env-default:"watcher"`
+	Brokers []string      `yaml:"bootstrap_servers"`
+	Topic   string        `yaml:"topic" env-default:"watcher"`
+	Timeout time.Duration `yaml:"timeout" env-default:"10s"`
 }
 
 type SchedulerConfig struct {
-	Cron     string `yaml:"cron" env-default:"0 10 * * *"`
+	Cron     string `yaml:"cron" env-default:"10 10-17 * * 1-5"`
 	Timezone string `yaml:"timezone" env-default:"UTC"`
 }
 

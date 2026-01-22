@@ -4,7 +4,10 @@ OUT_DIR := proto-gen
 WATCHER_PROTO_DIR := ../../proto/services/watcher/v1
 SCANNER_PROTO_DIR := ../../proto/services/scanner/v1
 
-all: gen-watcher gen-scanner
+MIGRATOR := go run ./cmd/migrator
+MIGRATIONS_DIR := ./migrations
+
+gen-all: gen-watcher gen-scanner
 
 gen-watcher:
 	@mkdir -p $(OUT_DIR)/watcher/v1
@@ -24,3 +27,16 @@ gen-scanner:
 
 clean:
 	@rm -rf $(OUT_DIR)/*
+
+migrate-up:
+	@test -n "$(POSTGRES_DSN)" || (echo "POSTGRES_DSN is not set" && exit 1)
+	$(MIGRATOR) \
+		-dsn "$(POSTGRES_DSN)" \
+		-migrations-path "$(MIGRATIONS_DIR)"
+
+migrate-down:
+	@test -n "$(POSTGRES_DSN)" || (echo "POSTGRES_DSN is not set" && exit 1)
+	$(MIGRATOR) \
+		-dsn "$(POSTGRES_DSN)" \
+		-migrations-path "$(MIGRATIONS_DIR)" \
+		-down
