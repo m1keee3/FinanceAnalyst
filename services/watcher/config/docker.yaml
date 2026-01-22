@@ -22,11 +22,11 @@ app:
 
 grpc:
   port: 8081
-  timeout: 10s
+  timeout: 5s
 
 grpc_client:
   address: localhost:8080
-  timeout: 15s
+  timeout: 20s
 
 kafka:
   bootstrap_servers:

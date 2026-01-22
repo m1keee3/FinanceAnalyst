@@ -35,7 +35,7 @@ type ScanCandleOptions struct {
 	ShadowTolerance float64 `yaml:"shadow_tolerance"`
 	BodyTolerance   float64 `yaml:"body_tolerance"`
 	DaysToWatch     int     `yaml:"days_to_watch" env-default:"3"`
-	MinMatches      int     `yaml:"min_matches" env-default:"10"`
+	MinMatches      int     `yaml:"min_matches" env-default:"1"`
 }
 
 type ScanChartOptions struct {
@@ -43,7 +43,7 @@ type ScanChartOptions struct {
 	MaxScale    float64 `yaml:"max_scale"`
 	Tolerance   float64 `yaml:"tolerance"`
 	DaysToWatch int     `yaml:"days_to_watch" env-default:"5"`
-	MinMatches  int     `yaml:"min_matches" env-default:"10"`
+	MinMatches  int     `yaml:"min_matches" env-default:"1"`
 }
 
 type GrpcConfig struct {
