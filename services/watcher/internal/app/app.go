@@ -23,29 +23,28 @@ type App struct {
 func New(log *slog.Logger, cfg *config.Config) *App {
 	const op = "app.New"
 
-	producer, err := kafka.New(cfg.Kafka.Brokers, cfg.Kafka.Topic, cfg.Kafka.Timeout)
-	if err != nil {
-		log.Error("failed to connect to kafka", slog.Any("error", err))
-	}
+	producer := kafka.New(cfg.Kafka.Brokers, cfg.Kafka.Topic, cfg.Kafka.Timeout)
 	log.Info("connected to kafka", slog.String("op", op), slog.Any("brokers", cfg.Kafka.Brokers), slog.String("topic", cfg.Kafka.Topic))
 
 	scannerClient, err := scanner.New(log, cfg.GrpcClient.Address, cfg.GrpcClient.Timeout)
 	if err != nil {
-		log.Error("failed to connect to scanner", slog.Any("error", err))
+		log.Error("failed to connect to scanner", sl.Err(err))
+	} else {
+		log.Info("connected to scanner client", slog.String("op", op), slog.Any("address", cfg.GrpcClient.Address))
 	}
-	log.Info("connected to scanner", slog.String("op", op), slog.Any("address", cfg.GrpcClient.Address))
 
 	storage, err := postgres.New(buildDSN(&cfg.Db))
 	if err != nil {
-		log.Error("failed to connect to postgres", slog.Any("error", err))
+		log.Error("failed to connect to postgres", sl.Err(err))
+	} else {
+		log.Info("connected to postgres", slog.String("op", op))
 	}
-	log.Info("connected to postgres", slog.String("op", op))
 
 	w := watcher.New(log, &cfg.App, producer, storage, scannerClient)
 
 	s, err := scheduler.New(cfg.Scheduler.Cron, cfg.Scheduler.Timezone, w)
 	if err != nil {
-		log.Error("failed to create scheduler", slog.Any("error", err))
+		log.Error("failed to create scheduler", sl.Err(err))
 	}
 
 	return &App{

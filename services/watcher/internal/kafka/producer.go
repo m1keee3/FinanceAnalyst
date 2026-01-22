@@ -1,43 +1,38 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
+	"github.com/segmentio/kafka-go"
 	"time"
 )
 
 type Producer struct {
-	producer *kafka.Producer
-	topic    string
-	timeout  time.Duration
+	writer  *kafka.Writer
+	topic   string
+	timeout time.Duration
 }
 
 func New(
 	brokers []string,
 	topic string,
 	timeout time.Duration,
-) (*Producer, error) {
+) *Producer {
 
-	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":      brokers,
-		"acks":                   "all",
-		"retries":                5,
-		"linger.ms":              10,
-		"enable.idempotence":     true,
-		"max.in.flight.requests": 5,
-	})
-
-	if err != nil {
-		return nil, err
+	writer := &kafka.Writer{
+		Addr:         kafka.TCP(brokers...),
+		Topic:        topic,
+		Balancer:     &kafka.Hash{},
+		RequiredAcks: kafka.RequireAll,
+		Async:        false,
 	}
 
 	return &Producer{
-		producer: p,
-		topic:    topic,
-		timeout:  timeout,
-	}, nil
+		writer:  writer,
+		timeout: timeout,
+	}
 }
 
 func (p *Producer) PublishStats(segStats *models.SegmentStats) error {
@@ -48,41 +43,31 @@ func (p *Producer) PublishStats(segStats *models.SegmentStats) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	deliveryChan := make(chan kafka.Event, 1)
-	defer close(deliveryChan)
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
 
-	err = p.producer.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &p.topic,
-			Partition: kafka.PartitionAny,
+	err = p.writer.WriteMessages(
+		ctx,
+		kafka.Message{
+			Key:   []byte(segStats.Segment.Ticker),
+			Value: data,
+			Time:  time.Now(),
 		},
-		Key:       []byte(segStats.Segment.Ticker),
-		Value:     data,
-		Timestamp: time.Now(),
-	}, deliveryChan)
+	)
 
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	select {
-	case ev := <-deliveryChan:
-		m := ev.(*kafka.Message)
-		if m.TopicPartition.Error != nil {
-			return fmt.Errorf(
-				"%s: delivery failed: %w",
-				op,
-				m.TopicPartition.Error,
-			)
-		}
-	case <-time.After(p.timeout):
-		return fmt.Errorf("%s: delivery timeout", op)
-	}
-
 	return nil
 }
 
-func (p *Producer) Close() {
-	p.producer.Flush(int(p.timeout.Milliseconds()))
-	p.producer.Close()
+func (p *Producer) Close() error {
+	const op = "producer.Kafka.Close"
+
+	if err := p.writer.Close(); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
 }

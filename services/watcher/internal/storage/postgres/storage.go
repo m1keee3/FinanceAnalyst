@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/storage"
 	"time"
@@ -16,7 +17,7 @@ type Storage struct {
 func New(dsn string) (*Storage, error) {
 	const op = "storage.Postgres.New"
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
