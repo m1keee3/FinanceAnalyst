@@ -2,8 +2,8 @@ package mapper
 
 import (
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
-	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/candle"
-	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/watcher/models/chart"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/models/candle"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/models/chart"
 	scannerv1 "github.com/m1keee3/FinanceAnalyst/services/watcher/proto-gen/scanner/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
