@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package scanner.v1;
+
+option go_package = "github.com/m1keee3/FinanceAnalyst/services/watcher/proto-gen/v1;watcherv1";
+
+import "google/protobuf/timestamp.proto";
+
+service Watcher {
+    rpc GetStats (GetStatsRequest) returns (GetStatsResponse);
+}
+
+message GetStatsRequest {}
+
+message GetStatsResponse {
+    repeated SegmentStats stats = 1;
+}
+
+message SegmentStats {
+    Segment segment = 1;
+    int32 total_matches = 2;
+    double price_change = 3;
+    double probability = 4;
+    string pattern_type = 5;
+}
+
+message Segment {
+    string ticker = 1;
+    google.protobuf.Timestamp from = 2;
+    google.protobuf.Timestamp to = 3;
+}

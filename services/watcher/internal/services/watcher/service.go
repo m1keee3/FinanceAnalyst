@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/m1keee3/FinanceAnalyst/pkg/logger/sl"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/config"
@@ -53,7 +54,7 @@ func New(
 	}
 }
 
-func (s *Service) GetStats(ctx context.Context) []models.SegmentStats {
+func (s *Service) GetStats(ctx context.Context) ([]models.SegmentStats, error) {
 	const op = "watcher.Service.GetStats"
 
 	log := s.log.With(slog.String("op", op))
@@ -63,17 +64,17 @@ func (s *Service) GetStats(ctx context.Context) []models.SegmentStats {
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			log.Warn("stats not found in storage")
-			return nil
+			return nil, fmt.Errorf("stats not found in storage")
 		}
 		s.log.Error("failed to get stats from storage", sl.Err(err))
-		return nil
+		return nil, fmt.Errorf("failed to get stats from storage")
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
 		return stats[i].Probability > stats[j].Probability
 	})
 
-	return stats
+	return stats, nil
 }
 
 func (s *Service) Run(ctx context.Context) {
@@ -147,6 +148,7 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 				})
 			if err != nil {
 				log.Error("failed to compute candle stats", sl.Err(err))
+				continue
 			}
 
 			if stats.TotalMatches >= s.cfg.CandleOptions.MinMatches {
@@ -199,6 +201,7 @@ func (s *Service) runChartStatsForTicker(ctx context.Context, ticker string) {
 
 		if err != nil {
 			log.Error("failed to compute chart stats", sl.Err(err))
+			continue
 		}
 
 		if stats.TotalMatches >= s.cfg.ChartOptions.MinMatches {

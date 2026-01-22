@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"github.com/m1keee3/FinanceAnalyst/pkg/logger/sl"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/app/grpc"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/clients/scanner"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/config"
 	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/kafka"
@@ -14,10 +15,11 @@ import (
 )
 
 type App struct {
-	log       *slog.Logger
-	storage   *postgres.Storage
-	kafka     *kafka.Producer
-	scheduler *scheduler.Scheduler
+	log        *slog.Logger
+	gRPCServer *grpc.App
+	storage    *postgres.Storage
+	kafka      *kafka.Producer
+	scheduler  *scheduler.Scheduler
 }
 
 func New(log *slog.Logger, cfg *config.Config) *App {
@@ -47,11 +49,14 @@ func New(log *slog.Logger, cfg *config.Config) *App {
 		log.Error("failed to create scheduler", sl.Err(err))
 	}
 
+	grpcApp := grpc.New(log, w, cfg.Grpc.Port, cfg.Grpc.RequestTimeout)
+
 	return &App{
-		log:       log,
-		storage:   storage,
-		kafka:     producer,
-		scheduler: s,
+		log:        log,
+		gRPCServer: grpcApp,
+		storage:    storage,
+		kafka:      producer,
+		scheduler:  s,
 	}
 }
 
@@ -61,6 +66,7 @@ func (a *App) Run() {
 	a.log.Info("starting app", slog.String("op", op))
 
 	a.scheduler.Run()
+	a.gRPCServer.MustRun()
 }
 
 func (a *App) Stop() {
@@ -70,10 +76,13 @@ func (a *App) Stop() {
 
 	a.scheduler.Stop()
 
-	a.kafka.Close()
+	a.gRPCServer.Stop()
 
-	err := a.storage.Close()
-	if err != nil {
+	if err := a.kafka.Close(); err != nil {
+		log.Warn("failed to close kafka", sl.Err(err))
+	}
+
+	if err := a.storage.Close(); err != nil {
 		log.Warn("failed to close storage", sl.Err(err))
 	}
 }
