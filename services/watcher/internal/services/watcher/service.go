@@ -1,0 +1,243 @@
+package watcher
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/m1keee3/FinanceAnalyst/pkg/logger/sl"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/domain/models"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/config"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/models/candle"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/services/models/chart"
+	"github.com/m1keee3/FinanceAnalyst/services/watcher/internal/storage"
+	"log/slog"
+	"sort"
+	"sync"
+	"time"
+)
+
+type Publisher interface {
+	PublishStats(segStats *models.SegmentStats) error
+}
+
+type Storage interface {
+	GetDailyStats(ctx context.Context) ([]models.SegmentStats, error)
+	SetDailySegmentStats(ctx context.Context, segStats models.SegmentStats) error
+}
+
+type Scanner interface {
+	ComputeCandleStats(ctx context.Context, query *candle.ScanQuery) (*models.SegmentStats, error)
+	ComputeChartStats(ctx context.Context, query *chart.ScanQuery) (*models.SegmentStats, error)
+}
+
+type Service struct {
+	log       *slog.Logger
+	cfg       *config.AppConfig
+	publisher Publisher
+	cache     Storage
+	scanner   Scanner
+}
+
+func New(
+	log *slog.Logger,
+	cfg *config.AppConfig,
+	publisher Publisher,
+	cache Storage,
+	scanner Scanner,
+) *Service {
+	return &Service{
+		log:       log,
+		cfg:       cfg,
+		publisher: publisher,
+		cache:     cache,
+		scanner:   scanner,
+	}
+}
+
+func (s *Service) GetStats(ctx context.Context) ([]models.SegmentStats, error) {
+	const op = "watcher.Service.GetStats"
+
+	log := s.log.With(slog.String("op", op))
+	log.Info("get stats request")
+
+	stats, err := s.cache.GetDailyStats(ctx)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			log.Warn("stats not found in storage")
+			return nil, fmt.Errorf("stats not found in storage")
+		}
+		s.log.Error("failed to get stats from storage", sl.Err(err))
+		return nil, fmt.Errorf("failed to get stats from storage")
+	}
+
+	sort.Slice(stats, func(i, j int) bool {
+		return stats[i].Probability > stats[j].Probability
+	})
+
+	return stats, nil
+}
+
+func (s *Service) Run(ctx context.Context) {
+	const op = "watcher.Service.Run"
+
+	log := s.log.With(slog.String("op", op))
+	log.Info("watcher service run started")
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for _, ticker := range s.cfg.Tickers {
+		wg.Add(2)
+		go func(ticker string) {
+			defer wg.Done()
+			s.runCandleStatsForTicker(ctx, ticker)
+		}(ticker)
+		go func(ticker string) {
+			defer wg.Done()
+			s.runChartStatsForTicker(ctx, ticker)
+		}(ticker)
+	}
+
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	for {
+		select {
+		case <-done:
+			log.Info("watcher service run completed")
+			return
+		case <-ctx.Done():
+			log.Warn("watcher service run canceled, waiting for jobs to finish")
+			wg.Wait()
+			return
+		}
+	}
+}
+
+func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
+	const op = "watcher.Service.runCandleStatsForTicker"
+
+	log := s.log.With(slog.String("op", op), slog.String("ticker", ticker))
+	log.Info("running candle stats for ticker")
+
+	var statsToHandle *models.SegmentStats
+	var res []models.SegmentStats
+
+	for tailLen := s.cfg.CandleOptions.MinTailLen; tailLen <= s.cfg.CandleOptions.MaxTailLen; tailLen++ {
+
+		for segLen := s.cfg.CandleMinLen; segLen <= s.cfg.CandleMaxLen; segLen++ {
+
+			stats, err := s.scanner.ComputeCandleStats(ctx,
+				&candle.ScanQuery{
+					Segment: &models.ChartSegment{
+						Ticker: ticker,
+						From:   time.Now().AddDate(0, 0, -segLen-tailLen),
+						To:     time.Now(),
+					},
+					Options: &candle.ScanOptions{
+						TailLen:         tailLen,
+						ShadowTolerance: s.cfg.CandleOptions.ShadowTolerance,
+						BodyTolerance:   s.cfg.CandleOptions.BodyTolerance,
+						DaysToWatch:     s.cfg.CandleOptions.DaysToWatch,
+					},
+					SearchFrom: s.cfg.SearchFrom,
+					SearchTo:   s.cfg.SearchTo,
+					Tickers:    s.cfg.Tickers,
+				})
+			if err != nil {
+				log.Error("failed to compute candle stats", sl.Err(err))
+				continue
+			}
+
+			if stats.TotalMatches >= s.cfg.CandleOptions.MinMatches {
+				res = append(res, *stats)
+			}
+		}
+
+	}
+
+	maxProb := 0.0
+	for i := range res {
+		if res[i].Probability >= maxProb {
+			maxProb = res[i].Probability
+			statsToHandle = &res[i]
+		}
+	}
+
+	if statsToHandle != nil {
+		s.handleStats(ctx, statsToHandle)
+	}
+}
+
+func (s *Service) runChartStatsForTicker(ctx context.Context, ticker string) {
+	const op = "watcher.Service.runChartStatsForTicker"
+
+	log := s.log.With(slog.String("op", op), slog.String("ticker", ticker))
+	log.Info("running chart stats for ticker")
+
+	var res []models.SegmentStats
+
+	for segLen := s.cfg.ChartMinLen; segLen <= s.cfg.ChartMaxLen; segLen++ {
+
+		stats, err := s.scanner.ComputeChartStats(ctx,
+			&chart.ScanQuery{
+				Segment: &models.ChartSegment{
+					Ticker: ticker,
+					From:   time.Now().AddDate(0, 0, -segLen),
+					To:     time.Now(),
+				},
+				Options: &chart.ScanOptions{
+					MinScale:    s.cfg.ChartOptions.MinScale,
+					MaxScale:    s.cfg.ChartOptions.MaxScale,
+					Tolerance:   s.cfg.ChartOptions.Tolerance,
+					DaysToWatch: s.cfg.ChartOptions.DaysToWatch,
+				},
+				SearchFrom: s.cfg.SearchFrom,
+				SearchTo:   s.cfg.SearchTo,
+				Tickers:    s.cfg.Tickers,
+			})
+
+		if err != nil {
+			log.Error("failed to compute chart stats", sl.Err(err))
+			continue
+		}
+
+		if stats.TotalMatches >= s.cfg.ChartOptions.MinMatches {
+			res = append(res, *stats)
+		}
+	}
+
+	var statsToHandle *models.SegmentStats
+
+	maxProb := 0.0
+	for i := range res {
+		if res[i].Probability >= maxProb {
+			maxProb = res[i].Probability
+			statsToHandle = &res[i]
+		}
+	}
+
+	if statsToHandle != nil {
+		s.handleStats(ctx, statsToHandle)
+	}
+}
+
+func (s *Service) handleStats(ctx context.Context, stats *models.SegmentStats) {
+	const op = "watcher.Service.handleStats"
+
+	log := s.log.With(slog.String("op", op))
+
+	if err := s.publisher.PublishStats(stats); err != nil {
+		log.Error("failed to publish stats", sl.Err(err))
+	} else {
+		log.Info("published stats", slog.Any("stats", stats))
+	}
+
+	if err := s.cache.SetDailySegmentStats(ctx, *stats); err != nil {
+		log.Error("failed to storage stats", sl.Err(err))
+	} else {
+		log.Info("stored stats", slog.Any("stats", stats))
+	}
+}
