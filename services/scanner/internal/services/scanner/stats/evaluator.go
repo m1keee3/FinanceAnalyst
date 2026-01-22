@@ -22,8 +22,8 @@ func NewComputer(fetcher Fetcher) *Computer {
 
 // ComputeStats считает статистику по совпадениям для заданного сегмента.
 // daysToWatch это количество свечей после сегмента, которые надо рассмотреть, если daysToWatch = 0, то алгоритм рассматривает свечи пока они идут в одном направлении
-func (e *Computer) ComputeStats(matches []models.ChartSegment, daysToWatch int) (*models.ScanStats, error) {
-	if e == nil || e.fetcher == nil {
+func (c *Computer) ComputeStats(matches []models.ChartSegment, daysToWatch int) (*models.ScanStats, error) {
+	if c == nil || c.fetcher == nil {
 		return &models.ScanStats{}, nil
 	}
 
@@ -32,7 +32,7 @@ func (e *Computer) ComputeStats(matches []models.ChartSegment, daysToWatch int) 
 	}
 
 	if daysToWatch == 0 {
-		return e.computeLineStats(matches)
+		return c.computeLineStats(matches)
 	}
 
 	var considered int
@@ -41,13 +41,13 @@ func (e *Computer) ComputeStats(matches []models.ChartSegment, daysToWatch int) 
 	var negSumChange float64
 
 	for _, m := range matches {
-		candles, err := e.fetcher.Fetch(m.Ticker, m.To.AddDate(0, 0, 1), m.To.AddDate(0, 0, daysToWatch))
+		candles, err := c.fetcher.Fetch(m.Ticker, m.To.AddDate(0, 0, 1), m.To.AddDate(0, 0, daysToWatch))
 		if err != nil {
 			log.Print(fmt.Errorf("error fetching candles for %s: %w", m.Ticker, err))
 			continue
 		}
 		for i := 1; len(candles) < daysToWatch && i < 2; i++ {
-			candles, err = e.fetcher.Fetch(m.Ticker, m.To.AddDate(0, 0, 1), m.To.AddDate(0, 0, i+daysToWatch))
+			candles, err = c.fetcher.Fetch(m.Ticker, m.To.AddDate(0, 0, 1), m.To.AddDate(0, 0, i+daysToWatch))
 			if err != nil {
 				log.Print(fmt.Errorf("error fetching candles for %s: %w", m.Ticker, err))
 				continue
@@ -100,14 +100,14 @@ func (e *Computer) ComputeStats(matches []models.ChartSegment, daysToWatch int) 
 	}, nil
 }
 
-func (s *Computer) computeLineStats(matches []models.ChartSegment) (*models.ScanStats, error) {
+func (c *Computer) computeLineStats(matches []models.ChartSegment) (*models.ScanStats, error) {
 	var considered int
 	var posCtr int
 	var posSumChange float64
 	var negSumChange float64
 
 	for _, m := range matches {
-		candles, err := s.fetcher.Fetch(m.Ticker, m.To.AddDate(0, 0, 1), m.To.AddDate(0, 0, 30))
+		candles, err := c.fetcher.Fetch(m.Ticker, m.To.AddDate(0, 0, 1), m.To.AddDate(0, 0, 30))
 		if err != nil {
 			log.Print(fmt.Errorf("error fetching candles for %s: %w", m.Ticker, err))
 			continue
