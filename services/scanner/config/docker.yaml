@@ -1,0 +1,9 @@
+env: prod
+
+grpc:
+  port: 8080
+  request_timeout: 15s
+
+redis:
+  addr: redis:6379
+  db: 0

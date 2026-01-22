@@ -1,0 +1,10 @@
+env: local
+
+grpc:
+  port: 8080
+  request_timeout: 60s
+
+redis:
+  addr: localhost:6379
+  password: scannerpass
+  db: 0

@@ -9,14 +9,14 @@ import (
 )
 
 type Config struct {
-	Env   string      `yaml:"env" env-default:"development"`
+	Env   string      `yaml:"env" env-default:"dev"`
 	Grpc  GrpcConfig  `yaml:"grpc"`
 	Redis RedisConfig `yaml:"redis"`
 }
 
 type GrpcConfig struct {
 	Port           int           `yaml:"port" env-default:"8080"`
-	RequestTimeout time.Duration `yaml:"request_timeout" env:"GRPC_TIMEOUT" env-default:"10s"`
+	RequestTimeout time.Duration `yaml:"request_timeout" env-default:"10s"`
 }
 
 type RedisConfig struct {
