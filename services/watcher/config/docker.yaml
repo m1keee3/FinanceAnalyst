@@ -1,0 +1,39 @@
+env: "prod"
+
+app:
+  search_from: 2012-01-14T00:00:00Z
+  search_to: 2026-01-13T23:59:59Z
+  tickers:
+    - SBER
+    - T
+
+    - LKOH
+    - ROSN
+    - GAZP
+
+    - RUAL
+    - GMKN
+
+    - YNDX
+    - VKCO
+
+    - OZON
+    - MGNT
+
+grpc:
+  port: 8081
+  timeout: 10s
+
+grpc_client:
+  address: localhost:8080
+  timeout: 15s
+
+kafka:
+  bootstrap_servers:
+    - kafka:29092
+  topic: watcher
+  timeout: 10s
+
+scheduler:
+  cron: "10 10-17 * * 1-5"
+  timezone: "Europe/Moscow"

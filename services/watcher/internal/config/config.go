@@ -18,20 +18,20 @@ type Config struct {
 }
 
 type AppConfig struct {
-	CandleOptions ScanCandleOptions `yaml:"scan_candle_opts"`
-	ChartOptions  ScanChartOptions  `yaml:"scan_chart_opts"`
 	SearchFrom    time.Time         `yaml:"search_from"`
 	SearchTo      time.Time         `yaml:"search_to"`
 	Tickers       []string          `yaml:"tickers"`
-	CandleMinLen  int               `yaml:"candle_min_len" env-default:"3"`
+	CandleMinLen  int               `yaml:"candle_min_len" env-default:"2"`
 	CandleMaxLen  int               `yaml:"candle_max_len" env-default:"5"`
 	ChartMinLen   int               `yaml:"chart_min_len" env-default:"15"`
 	ChartMaxLen   int               `yaml:"chart_max_len" env-default:"30"`
+	CandleOptions ScanCandleOptions `yaml:"scan_candle_opts"`
+	ChartOptions  ScanChartOptions  `yaml:"scan_chart_opts"`
 }
 
 type ScanCandleOptions struct {
-	MinTailLen      int     `yaml:"min_tail_len"`
-	MaxTailLen      int     `yaml:"max_tail_len"`
+	MinTailLen      int     `yaml:"min_tail_len" env-default:"0"`
+	MaxTailLen      int     `yaml:"max_tail_len" env-default:"3"`
 	ShadowTolerance float64 `yaml:"shadow_tolerance"`
 	BodyTolerance   float64 `yaml:"body_tolerance"`
 	DaysToWatch     int     `yaml:"days_to_watch" env-default:"3"`
@@ -57,11 +57,11 @@ type GrpcClientConfig struct {
 }
 
 type DbConfig struct {
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
+	User     string `yaml:"user" env:"POSTGRES_USER"`
+	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
 	Host     string `yaml:"host" env-default:"localhost"`
 	Port     int    `yaml:"port" env-default:"5432"`
-	DBName   string `yaml:"dbname"`
+	DBName   string `yaml:"dbname" env:"POSTGRES_DB"`
 	SSLMode  string `yaml:"sslmode" env-default:"disable"`
 }
 
@@ -72,7 +72,7 @@ type KafkaConfig struct {
 }
 
 type SchedulerConfig struct {
-	Cron     string `yaml:"cron" env-default:"10 10-17 * * 1-5"`
+	Cron     string `yaml:"cron" env-default:`
 	Timezone string `yaml:"timezone" env-default:"UTC"`
 }
 
