@@ -132,7 +132,7 @@ func (s *Service) runCandleStatsForTicker(ctx context.Context, ticker string) {
 				&candle.ScanQuery{
 					Segment: &models.ChartSegment{
 						Ticker: ticker,
-						From:   time.Now().AddDate(0, 0, -segLen),
+						From:   time.Now().AddDate(0, 0, -segLen-tailLen),
 						To:     time.Now(),
 					},
 					Options: &candle.ScanOptions{
