@@ -19,6 +19,7 @@ import (
 const (
 	dayDuration      = 24 * time.Hour
 	halfHourDuration = 30 * time.Minute
+	cacheTimeout     = 2 * time.Second
 )
 
 type Cache interface {
@@ -99,13 +100,7 @@ func (s *Service) FindCandleMatches(ctx context.Context, query *candlemodels.Sca
 			return nil, fmt.Errorf("%s: %w", op, res.err)
 		}
 
-		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.candleTTL(query)); err != nil {
-				log.Warn("failed to cache matches", sl.Err(err))
-			} else {
-				log.Info("cached matches")
-			}
-		}()
+		go s.cacheMatches(hash, res.matches, s.candleTTL(query))
 
 		return res.matches, nil
 	}
@@ -149,13 +144,7 @@ func (s *Service) FindChartMatches(ctx context.Context, query *chartmodels.ScanQ
 			return nil, fmt.Errorf("%s: %w", op, res.err)
 		}
 
-		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.chartTTL(query)); err != nil {
-				log.Warn("failed to cache matches", sl.Err(err))
-			} else {
-				log.Info("cached matches")
-			}
-		}()
+		go s.cacheMatches(query.Hash(), res.matches, s.chartTTL(query))
 
 		return res.matches, nil
 	}
@@ -214,13 +203,7 @@ func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.St
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(res.err))
 		}
 
-		go func() {
-			if err := s.cache.SetScan(ctx, query.ScanQuery.Hash(), res.matches, s.candleTTL(query.ScanQuery)); err != nil {
-				log.Warn("failed to cache matches", sl.Err(err))
-			} else {
-				log.Info("cached matches")
-			}
-		}()
+		go s.cacheMatches(query.ScanQuery.Hash(), res.matches, s.candleTTL(query.ScanQuery))
 
 		stats, err := s.statsComputer.ComputeStats(res.matches, query.DaysToWatch)
 		if err != nil {
@@ -228,13 +211,7 @@ func (s *Service) ComputeCandleStats(ctx context.Context, query *candlemodels.St
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(err))
 		}
 
-		go func() {
-			if err := s.cache.SetStats(ctx, query.Hash(), stats, s.candleTTL(query.ScanQuery)); err != nil {
-				log.Warn("failed to cache stats", sl.Err(err))
-			} else {
-				log.Info("cached stats")
-			}
-		}()
+		go s.cacheStats(query.Hash(), stats, s.candleTTL(query.ScanQuery))
 
 		return stats, nil
 	}
@@ -245,8 +222,6 @@ func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.Stat
 
 	log := s.log.With(slog.String("op", op))
 	log.Info("compute chart stats request")
-
-	hash := query.Hash()
 
 	cachedStats, err := s.cache.GetStats(ctx, query.Hash())
 	if err != nil {
@@ -295,13 +270,7 @@ func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.Stat
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(res.err))
 		}
 
-		go func() {
-			if err := s.cache.SetScan(ctx, hash, res.matches, s.chartTTL(query.ScanQuery)); err != nil {
-				log.Warn("failed to cache matches", sl.Err(err))
-			} else {
-				log.Info("cached matches")
-			}
-		}()
+		go s.cacheMatches(query.ScanQuery.Hash(), res.matches, s.chartTTL(query.ScanQuery))
 
 		stats, err := s.statsComputer.ComputeStats(res.matches, query.DaysToWatch)
 		if err != nil {
@@ -309,15 +278,37 @@ func (s *Service) ComputeChartStats(ctx context.Context, query *chartmodels.Stat
 			return nil, fmt.Errorf("%s: %w", op, sl.Err(err))
 		}
 
-		go func() {
-			if err := s.cache.SetStats(ctx, query.Hash(), stats, s.chartTTL(query.ScanQuery)); err != nil {
-				log.Warn("failed to cache stats", sl.Err(err))
-			} else {
-				log.Info("cached stats")
-			}
-		}()
+		go s.cacheStats(query.Hash(), stats, s.chartTTL(query.ScanQuery))
 
 		return stats, nil
+	}
+}
+
+func (s *Service) cacheMatches(hash string, matches []models.ChartSegment, ttl time.Duration) {
+	const op = "scanner.Service.cacheMatches"
+	log := s.log.With(slog.String("op", op))
+
+	ctx, cancel := context.WithTimeout(context.Background(), cacheTimeout)
+	defer cancel()
+
+	if err := s.cache.SetScan(ctx, hash, matches, ttl); err != nil {
+		log.Warn("failed to cache matches", sl.Err(err))
+	} else {
+		log.Info("cached matches", slog.String("hash", hash))
+	}
+}
+
+func (s *Service) cacheStats(hash string, stats *models.ScanStats, ttl time.Duration) {
+	const op = "scanner.Service.cacheStats"
+	log := s.log.With(slog.String("op", op))
+
+	ctx, cancel := context.WithTimeout(context.Background(), cacheTimeout)
+	defer cancel()
+
+	if err := s.cache.SetStats(ctx, hash, stats, ttl); err != nil {
+		log.Warn("failed to cache stats", sl.Err(err))
+	} else {
+		log.Info("cached stats", slog.String("hash", hash))
 	}
 }
 
