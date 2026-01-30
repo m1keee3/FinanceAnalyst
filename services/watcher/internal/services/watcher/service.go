@@ -21,8 +21,8 @@ type Publisher interface {
 }
 
 type Storage interface {
-	GetDailyStats(ctx context.Context) ([]models.SegmentStats, error)
-	SetDailySegmentStats(ctx context.Context, segStats models.SegmentStats) error
+	GetDailyStats(ctx context.Context) ([]*models.SegmentStats, error)
+	SetDailySegmentStats(ctx context.Context, segStats *models.SegmentStats) error
 }
 
 type Scanner interface {
@@ -54,7 +54,7 @@ func New(
 	}
 }
 
-func (s *Service) GetStats(ctx context.Context) ([]models.SegmentStats, error) {
+func (s *Service) GetStats(ctx context.Context) ([]*models.SegmentStats, error) {
 	const op = "watcher.Service.GetStats"
 
 	log := s.log.With(slog.String("op", op))
@@ -235,7 +235,7 @@ func (s *Service) handleStats(ctx context.Context, stats *models.SegmentStats) {
 		log.Info("published stats", slog.Any("stats", stats))
 	}
 
-	if err := s.cache.SetDailySegmentStats(ctx, *stats); err != nil {
+	if err := s.cache.SetDailySegmentStats(ctx, stats); err != nil {
 		log.Error("failed to storage stats", sl.Err(err))
 	} else {
 		log.Info("stored stats", slog.Any("stats", stats))

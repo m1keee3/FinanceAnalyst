@@ -25,7 +25,7 @@ func New(dsn string) (*Storage, error) {
 	return &Storage{db: db}, nil
 }
 
-func (s *Storage) GetDailyStats(ctx context.Context) ([]models.SegmentStats, error) {
+func (s *Storage) GetDailyStats(ctx context.Context) ([]*models.SegmentStats, error) {
 	const op = "storage.Postgres.GetDailyStats"
 
 	query := `
@@ -49,7 +49,7 @@ func (s *Storage) GetDailyStats(ctx context.Context) ([]models.SegmentStats, err
 	}
 	defer rows.Close()
 
-	var result []models.SegmentStats
+	var result []*models.SegmentStats
 
 	for rows.Next() {
 		var (
@@ -73,7 +73,7 @@ func (s *Storage) GetDailyStats(ctx context.Context) ([]models.SegmentStats, err
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 
-		result = append(result, models.SegmentStats{
+		result = append(result, &models.SegmentStats{
 			Segment: &models.ChartSegment{
 				Ticker: ticker,
 				From:   from,
@@ -93,7 +93,7 @@ func (s *Storage) GetDailyStats(ctx context.Context) ([]models.SegmentStats, err
 	return result, nil
 }
 
-func (s *Storage) SetDailySegmentStats(ctx context.Context, segStats models.SegmentStats) error {
+func (s *Storage) SetDailySegmentStats(ctx context.Context, segStats *models.SegmentStats) error {
 	const op = "storage.Postgres.SetDailySegmentStats"
 
 	query := `

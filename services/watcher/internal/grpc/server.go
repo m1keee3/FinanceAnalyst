@@ -11,7 +11,7 @@ import (
 )
 
 type WatcherService interface {
-	GetStats(ctx context.Context) ([]models.SegmentStats, error)
+	GetStats(ctx context.Context) ([]*models.SegmentStats, error)
 }
 
 type serverAPI struct {
@@ -29,5 +29,5 @@ func (s *serverAPI) GetStats(ctx context.Context, request *watcherv1.GetStatsReq
 		return nil, status.Error(codes.Internal, "failed to get stats")
 	}
 
-	return mapper.StatsToGetStatsResponse(stats), nil
+	return mapper.ToGetStatsResponse(stats), nil
 }
