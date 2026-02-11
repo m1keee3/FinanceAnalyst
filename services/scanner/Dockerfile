@@ -9,7 +9,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/bin/scanner ./cmd/scanner
 
-FROM alpine:3.20
+FROM alpine:latest
 
 RUN adduser -D -g "" scanner \
     && apk add --no-cache ca-certificates
@@ -22,6 +22,6 @@ COPY config ./config
 
 ENV CONFIG_PATH=/app/config/docker.yaml
 
-EXPOSE 8080
+EXPOSE 50050
 
 ENTRYPOINT ["/app/scanner"]
