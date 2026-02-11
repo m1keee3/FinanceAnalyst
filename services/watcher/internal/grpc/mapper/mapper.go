@@ -6,11 +6,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func StatsToGetStatsResponse(stats []models.SegmentStats) *watcherv1.GetStatsResponse {
+func ToGetStatsResponse(stats []*models.SegmentStats) *watcherv1.GetStatsResponse {
 	protoStats := make([]*watcherv1.SegmentStats, len(stats))
 
 	for i, s := range stats {
-		protoStats[i] = toProtoStats(&s)
+		protoStats[i] = toProtoStats(s)
 	}
 
 	return &watcherv1.GetStatsResponse{
