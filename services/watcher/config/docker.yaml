@@ -25,7 +25,7 @@ grpc:
   timeout: 5s
 
 grpc_client:
-  address: localhost:8080
+  address: localhost:50050
   timeout: 20s
 
 kafka:

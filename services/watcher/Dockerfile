@@ -12,12 +12,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/bin/watcher ./cmd/wat
 FROM alpine:latest
 
 RUN adduser -D -g "" watcher \
-    && apk add --no-cache ca-certificates tzdata
+    && apk add --no-cache ca-certificates
 
 USER watcher
 WORKDIR /app
 
 COPY --from=builder /app/bin/watcher ./watcher
+COPY config ./config
 
 EXPOSE 50052
 
