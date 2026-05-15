@@ -1,0 +1,12 @@
+env: local
+
+http:
+  port: 8090
+
+scanner:
+  address: localhost:8080
+  timeout: 30s
+
+watcher:
+  address: localhost:8081
+  timeout: 30s

@@ -20,7 +20,14 @@ type Handler struct {
 	client Client
 }
 
-func (h Handler) GetStats(c *gin.Context) {
+func New(log *slog.Logger, client Client) *Handler {
+	return &Handler{
+		log:    log,
+		client: client,
+	}
+}
+
+func (h *Handler) GetStats(c *gin.Context) {
 	const op = "watcher.Handler.GetStats"
 
 	log := h.log.With(slog.String("op", op))

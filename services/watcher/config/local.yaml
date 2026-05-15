@@ -29,9 +29,9 @@ grpc_client:
   timeout: 60s
 
 db:
-  user: watcher
-  password: watcherpass
-  dbname: watcher
+  user: watcher_user
+  password: watcher_pass
+  dbname: watcher_db
 
 kafka:
   bootstrap_servers:
@@ -40,5 +40,5 @@ kafka:
   timeout: 60s
 
 scheduler:
-  cron: "*/5 * * * *"
+  cron: "47 * * * *"
   timezone: "Europe/Moscow"

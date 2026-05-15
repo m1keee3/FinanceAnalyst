@@ -22,10 +22,10 @@ func NewRouter(log *slog.Logger, scanner ScannerHandler, watcher WatcherHandler)
 
 	r.Use(logger.New(log), gin.Recovery())
 
-	r.GET("/scanner/candle/matches", scanner.GetCandleMatches)
-	r.GET("/scanner/chart/matches", scanner.GetChartMatches)
-	r.GET("/scanner/candle/stats", scanner.GetCandleStats)
-	r.GET("/scanner/chart/stats", scanner.GetChartStats)
+	r.POST("/scanner/candle/matches", scanner.GetCandleMatches)
+	r.POST("/scanner/chart/matches", scanner.GetChartMatches)
+	r.POST("/scanner/candle/stats", scanner.GetCandleStats)
+	r.POST("/scanner/chart/stats", scanner.GetChartStats)
 
 	r.GET("/watcher/stats", watcher.GetStats)
 

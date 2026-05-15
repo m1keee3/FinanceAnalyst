@@ -53,6 +53,13 @@ func InterceptorLogger(l *slog.Logger) logging.Logger {
 	})
 }
 
+func (c *Client) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+	return c.conn.Close()
+}
+
 func (c *Client) GetStats(ctx context.Context) ([]*watcher.SegmentStats, error) {
 	const op = "watcher.Client.GetStats"
 

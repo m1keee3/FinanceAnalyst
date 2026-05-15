@@ -1,0 +1,12 @@
+env: prod
+
+http:
+  port: 8090
+
+scanner:
+  address: scanner:50050
+  timeout: 30s
+
+watcher:
+  address: watcher:8081
+  timeout: 30s
